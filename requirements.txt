@@ -1,0 +1,5 @@
+llama-index
+
+aiodns
+aiohttp
+pytest-aiohttp

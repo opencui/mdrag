@@ -5,24 +5,25 @@ import os
 import sys
 import shutil
 import logging
-from langchain.llms import GPT4All
 from langchain.embeddings import HuggingFaceEmbeddings
 
 from llama_index import ServiceContext
 from llama_index import VectorStoreIndex, SimpleDirectoryReader
-from llama_index.llms import LangChainLLM
 from llama_index.embeddings import LangchainEmbedding
+from llama_index import set_global_service_context
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
+# python rag-index doc_path index_path
 if __name__ == "__main__":
     langchain_embedding = HuggingFaceEmbeddings(
         model_name="sentence-transformers/multi-qa-mpnet-base-dot-v1",
         model_kwargs={'device': 'cpu'},
     )
     embed_model = LangchainEmbedding(langchain_embedding)
-    service_context = ServiceContext.from_defaults(embed_model=embed_model, )
+    service_context = ServiceContext.from_defaults(embed_model=embed_model)
+    set_global_service_context(service_context)
 
     if len(sys.argv) != 3:
         sys.exit(1)
@@ -37,8 +38,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        index = VectorStoreIndex.from_documents(
-            documents, service_context=service_context)
+        index = VectorStoreIndex.from_documents(documents)
         index.storage_context.persist(persist_dir=p2)
     except Exception as e:
         print(str(e))

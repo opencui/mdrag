@@ -1,4 +1,4 @@
-## Retrieval augmented generation for System 1
+## Retrieval augmented generation as System 1
 
 To build cost effective conversational experience, it is useful to take advantage of every things you had, and retrieval augmented generation is a great way to field informational query using the existing material you build along the way. Aiming for being System 1, this project assumes that the dependibility is created on top of the LLMs based RAGs, so that RAGs itself can stay as simply as possible. In particular, we focus on being easy to deploy, make indexing phase extensible, and providing an universal OpenAI base chat interface regardless which LLMs you use for generation (thanks to GenossGPT).
 

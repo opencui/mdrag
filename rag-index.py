@@ -5,8 +5,8 @@ import os
 import sys
 import shutil
 import logging
-from langchain.embeddings import HuggingFaceEmbeddings
 
+from langchain.embeddings import HuggingFaceEmbeddings
 from llama_index import ServiceContext
 from llama_index import VectorStoreIndex, SimpleDirectoryReader
 from llama_index.embeddings import LangchainEmbedding
@@ -34,7 +34,10 @@ if __name__ == "__main__":
     if os.path.isfile(p1):
         documents = SimpleDirectoryReader(input_files=[p1]).load_data()
     elif os.path.isdir(p1):
-        documents = SimpleDirectoryReader(input_dir=p1).load_data()
+        documents = SimpleDirectoryReader(
+            input_dir=p1,
+            recursive=True,
+        ).load_data()
     else:
         sys.exit(1)
 

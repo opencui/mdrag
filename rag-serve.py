@@ -33,8 +33,7 @@ async def query(request: web.Request):
     if type(input) != str:
         return web.json_response({"errMsg": f'input type is not str'})
 
-    index = request.app['index']
-    query_engine = index.as_query_engine()
+    query_engine = request.app['engine']
     response: RESPONSE_TYPE = query_engine.query(input)
 
     resp = {"result": str(response)}
@@ -44,7 +43,7 @@ async def query(request: web.Request):
 def init_app(index):
     app = web.Application()
     app.add_routes(routes)
-    app['index'] = index
+    app['engine'] = index.as_query_engine()
     return app
 
 

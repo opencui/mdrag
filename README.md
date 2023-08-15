@@ -1,14 +1,38 @@
-## Retrieval augmented generation as System 1
+## Retrieval augmented generation on markdown
 
-RAG system 1 allow you can different prompt with OpenAI chat API to build different chat experience,
+Markdown is a lightweight markup language that allows you to format text in a way that is easy to  read and
+write. It's commonly used for creating content that will be displayed on the web, such as in websites,
+blogs, forums, and documentation. Markdown is designed to be simple and intuitive, allowing you to use
+plain text to add formatting elements like headers, lists, links, images, and more, without the need for
+complex HTML or other formatting languages.
+
+Because of the simplicity of its markup language, it is fairly easy to parse the semantic structure
+from the markdown file, for example, headers are generally used as title for subsections. These structure
+can then be used during both the index and retrieval phase for better performance. MdRag is a simple
+retrieval augmented generation system focus on markdown files.
+
+MdRag also allow you to use different prompt using OpenAI chat like API to build different chat experience,
 while bring your private text to LLMs (use llamaindex), simply use the handlebars via pybars3. Note
-it is possible to use other LLMs (llama v2 for example) using GenossGPT.
-
-To quality of the RAG system depends on both retrieval and generation. The retrieval quality are decided 
-by how documents are parsed, and how nodes are combined before they are sent into LLMs, which will be the
-focus of this project.
+it is possible to use other LLMs (llama v2 for example) for generation using GenossGPT.
 
 
+```python
+class Turn:
+    def __init__(self, role: str, text: str):
+        self.role = role
+        self.text = text
+
+# This is the main function that mdrag provides. Notice the prompt is for system, and it uses the handlebars
+# templating, with {{query}} representing the current user input, and {{context}} for retrieved text.
+
+prompt = "We have provided context information below. \n" 
+    "---------------------\n"
+    "{{context}}"
+    "\n---------------------\n"
+    "Given this information, please answer the question: {{query}}\n"
+
+def complete(session: list[Turn], prompt: str = prompt): str
+```
 
 ### Install
 

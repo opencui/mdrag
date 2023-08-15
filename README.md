@@ -1,10 +1,13 @@
 ## Retrieval augmented generation as System 1
 
-To build cost effective conversational experience, it is useful to take advantage of every things you had, and retrieval augmented generation is a great way to field informational query using the existing material you build along the way. Aiming for being System 1, this project assumes that the dependibility is created on top of the LLMs based RAGs, so that RAGs itself can stay as simply as possible. In particular, we focus on being easy to deploy, make indexing phase extensible, and providing an universal OpenAI base chat interface regardless which LLMs you use for generation (thanks to GenossGPT).
+RAG system 1 allow you can different prompt with OpenAI chat API to build different chat experience,
+while bring your private text to LLMs (use llamaindex), simply use the handlebars via pybars3. Note
+it is possible to use other LLMs (llama v2 for example) using GenossGPT.
 
-System 1 is assumed to be language dependent, and it requires access to two different models: one for creating embedding for qeury and nodes, another for generating response based on prompt and context from the retrieved context. Generally we want a bigger model for generation.
+To quality of the RAG system depends on both retrieval and generation. The retrieval quality are decided 
+by how documents are parsed, and how nodes are combined before they are sent into LLMs, which will be the
+focus of this project.
 
-Embedding: For English, we use the following sentence-transformer package, and in particular we use the multi-qa-mpnet-base-dot-v1 as default.
 
 
 ### Install

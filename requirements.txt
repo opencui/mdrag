@@ -3,3 +3,4 @@ llama-index
 aiodns
 aiohttp
 pytest-aiohttp
+pybars3

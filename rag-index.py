@@ -11,7 +11,7 @@ from llama_index import ServiceContext
 from llama_index import VectorStoreIndex, SimpleDirectoryReader
 from llama_index.embeddings import LangchainEmbedding
 from llama_index import set_global_service_context
-from processors.markdown import MarkdownDocsReader
+from processors.markdown import MarkdownReader
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
@@ -27,26 +27,26 @@ set_global_service_context(service_context)
 
 # python rag-index doc_path index_path
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
+    if len(sys.argv) < 3:
         sys.exit(1)
 
-    p1, p2 = sys.argv[1], sys.argv[2]
+    # We assume that there output directory is the first argument, and the rest is input directory
+    p2 = sys.argv[1]
 
-    if os.path.isfile(p1):
-        documents = SimpleDirectoryReader(
-            input_files=[p1],
-            exclude=["*.rst", "*.ipynb", "*.py", "*.bat", "*.txt", "*.png", "*.jpg", "*.jpeg", "*.csv", "*.html", "*.js", "*.css", "*.pdf", "*.json"],
-            file_extractor={".md": MarkdownDocsReader()},
-            recursive=True).load_data()
-    elif os.path.isdir(p1):
-        documents = SimpleDirectoryReader(
-            input_dir=p1,
-            exclude=["*.rst", "*.ipynb", "*.py", "*.bat", "*.txt", "*.png", "*.jpg", "*.jpeg", "*.csv", "*.html", "*.js", "*.css", "*.pdf", "*.json"],
-            file_extractor={".md": MarkdownDocsReader()},
-            recursive=True,
-        ).load_data()
-    else:
-        sys.exit(1)
+    documents = []
+    for p1 in sys.argv[2:]:
+        if os.path.isfile(p1) and p1.endswith(".md"):
+            documents.extend(MarkdownReader().load_data(p1))
+        elif os.path.isdir(p1):
+            documents.extend(SimpleDirectoryReader(
+                input_dir=p1,
+                exclude=["*.rst", "*.ipynb", "*.py", "*.bat", "*.txt", "*.png", "*.jpg", "*.jpeg", "*.csv", "*.html",
+                         "*.js", "*.css", "*.pdf", "*.json"],
+                file_extractor={".md": MarkdownReader()},
+                excluded_embed_metadata_keys=["file_name", "content_type"],
+                excluded_llm_metadata_keys=["file_name", "content_type"],
+                recursive=True,
+            ).load_data())
 
     try:
         index = VectorStoreIndex.from_documents(documents)

@@ -6,7 +6,7 @@ from llama_index.readers.base import BaseReader
 from llama_index.schema import Document, NodeRelationship, RelatedNodeInfo
 
 
-class MarkdownDocsReader(BaseReader):
+class MarkdownReader(BaseReader):
     """
     MarkdownDocsReader
     Extract text from markdown files into Document objects.
@@ -25,10 +25,9 @@ class MarkdownDocsReader(BaseReader):
         self._remove_images = remove_images
 
     def markdown_to_docs(self, markdown_text: str, filename: str) -> List[Document]:
-        """Convert a markdown file to a dictionary.
-
+        """
+        Convert a markdown file to a dictionary.
         The keys are the headers and the values are the text under each header.
-
         """
         markdown_docs: List[Document] = []
         lines = markdown_text.split("\n")
@@ -42,16 +41,32 @@ class MarkdownDocsReader(BaseReader):
             header_match = re.match(r"^#+\s", line)
             code_match = re.match(r"^```", line)
             if header_match:
-                # save the current text
+                markdown_docs.append(
+                     Document(
+                        text=line.strip(),
+                        metadata={
+                            "file_name": filename,
+                            "content_type": "header",
+                            "header": "/".join(header_stack),
+                        }
+                    )
+                )
+
+                # when we find the next header, save the current text
                 if current_text.strip() != "":
                     markdown_docs.append(
                         Document(
                             text=current_text.strip(),
                             metadata={
-                                "File Name": filename,
-                                "Content Type": "text",
-                                "Header Path": "/".join(header_stack),
+                                "file_name": filename,
+                                "content_type": "text",
+                                "header": "/".join(header_stack),
                             },
+                            relationships={
+                                NodeRelationship.PARENT: RelatedNodeInfo(
+                                    node_id=markdown_docs[-1].id_,
+                                )
+                            }
                         )
                     )
                     current_text = ""
@@ -66,16 +81,18 @@ class MarkdownDocsReader(BaseReader):
                     header_stack.pop()
                     header_stack.append(header_text)
             elif code_match or current_code_block:
+                # Similarly, when we find the second match of code block, we
+                # output code block.
                 if code_match and current_code_block:
                     current_code_block += line + "\n"
-                    if len(markdown_docs) > 0 and markdown_docs[-1].metadata['Header Path'] == '/'.join(header_stack):
+                    if len(markdown_docs) > 0 and markdown_docs[-1].metadata['header'] == '/'.join(header_stack):
                         markdown_docs.append(
                             Document(
                                 text=current_code_block.strip(),
                                 metadata={
-                                    "File Name": filename,
-                                    "Content Type": "code",
-                                    "Header Path": "/".join(header_stack),
+                                    "file_name": filename,
+                                    "content_type": "code",
+                                    "header": "/".join(header_stack),
                                 },
                                 relationships={
                                     NodeRelationship.PARENT: RelatedNodeInfo(
@@ -89,9 +106,9 @@ class MarkdownDocsReader(BaseReader):
                             Document(
                                 text=current_code_block,
                                 metadata={
-                                    "File Name": filename,
-                                    "Content Type": "code",
-                                    "Header Path": "/".join(header_stack),
+                                    "file_name": filename,
+                                    "content_type": "code",
+                                    "header": "/".join(header_stack),
                                 },
                             )
                         )
@@ -101,9 +118,9 @@ class MarkdownDocsReader(BaseReader):
                         Document(
                             text=current_text.strip(),
                             metadata={
-                                "File Name": filename,
-                                "Content Type": "text",
-                                "Header Path": "/".join(header_stack),
+                                "file_name": filename,
+                                "content_type": "text",
+                                "header": "/".join(header_stack),
                             },
                         )
                     )
@@ -119,13 +136,17 @@ class MarkdownDocsReader(BaseReader):
                 Document(
                     text=current_text.strip(),
                     metadata={
-                        "File Name": filename,
-                        "Content Type": "text",
-                        "Header Path": "/".join(header_stack),
+                        "file_name": filename,
+                        "content_type": "text",
+                        "header": "/".join(header_stack),
                     },
+                    relationships={
+                        NodeRelationship.PARENT: RelatedNodeInfo(
+                            node_id=markdown_docs[-1].id_,
+                        )
+                    }
                 )
             )
-            current_text = ""
 
         return markdown_docs
 

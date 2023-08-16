@@ -52,7 +52,7 @@ async def query(request: web.Request):
 
     retriever = request.app['engine']
 
-    context = retriever.query(user_input)
+    context = retriever.retrieve(user_input)
     compiler = request.app['compiler'].compiler
     template = compiler.compile(prompt)
     new_prompt = template({

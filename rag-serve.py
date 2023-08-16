@@ -67,7 +67,7 @@ async def query(request: web.Request):
         temperature=0  # Try to as deterministic as possible.
     )
 
-    resp = {"result": str(response)}
+    resp = {"reply": response.choices[0].message["content"]}
     return web.json_response(resp)
 
 

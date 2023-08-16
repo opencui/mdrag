@@ -41,6 +41,9 @@ def conversation(prompt, turns):
 async def query(request: web.Request):
     req = await request.post()
     prompt = req.get("prompt")
+    if len(prompt) == 0:
+        prompt = request.app['prompt']
+
     turns = req.get("turns")
     size = len(turns)
     if len(turns) == 0:
@@ -74,7 +77,11 @@ def init_app(index):
     app.add_routes(routes)
     app['engine'] = index.as_retriever()
     app['compiler'] = Compiler()
-
+    app['prompt'] =  "We have provided context information below. \n" \
+                     "---------------------\n"\
+                     "{{context}}"\
+                     "\n---------------------\n"\
+                     "Given this information, please answer the question: {{query}}\n"
     return app
 
 

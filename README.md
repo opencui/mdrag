@@ -1,11 +1,35 @@
-## Retrieval augmented generation as System 1
+## Retrieval augmented generation on markdown
 
-To build cost effective conversational experience, it is useful to take advantage of every things you had, and retrieval augmented generation is a great way to field informational query using the existing material you build along the way. Aiming for being System 1, this project assumes that the dependibility is created on top of the LLMs based RAGs, so that RAGs itself can stay as simply as possible. In particular, we focus on being easy to deploy, make indexing phase extensible, and providing an universal OpenAI base chat interface regardless which LLMs you use for generation (thanks to GenossGPT).
+Markdown is a lightweight markup language that allows you to format text in a way that is easy to  read and
+write. It's commonly used for creating content that will be displayed on the web, such as in websites,
+blogs, forums, and documentation. Markdown is designed to be simple and intuitive, allowing you to use
+plain text to add formatting elements like headers, lists, links, images, and more, without the need for
+complex HTML or other formatting languages.
 
-System 1 is assumed to be language dependent, and it requires access to two different models: one for creating embedding for qeury and nodes, another for generating response based on prompt and context from the retrieved context. Generally we want a bigger model for generation.
+Because of the simplicity of its markup language, it is fairly easy to parse the semantic structure
+from the markdown file, for example, headers are generally used as title for subsections. These structure
+can then be used during both the index and retrieval phase for better performance. MdRag is a simple
+retrieval augmented generation system focus on markdown files.
 
-Embedding: For English, we use the following sentence-transformer package, and in particular we use the multi-qa-mpnet-base-dot-v1 as default.
+MdRag also allow you to use different prompt using OpenAI chat like API to build different chat experience,
+while bring your private text to LLMs (use llamaindex), simply use the handlebars via pybars3. Note
+it is possible to use other LLMs (llama v2 for example) for generation using GenossGPT.
 
+
+```python
+
+# This is the main function that mdrag provides. Notice the prompt is for system, and it uses the handlebars
+# templating, with {{query}} representing the current user input, and {{context}} for retrieved text.
+# each turn is a dictionary with two keys: role and content.
+
+prompt = "We have provided context information below. \n" 
+    "---------------------\n"
+    "{{context}}"
+    "\n---------------------\n"
+    "Given this information, please answer the question: {{query}}\n"
+
+def query(turns: list[dict[str, str]], prompt: str = prompt): str
+```
 
 ### Install
 

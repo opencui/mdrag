@@ -11,6 +11,7 @@ from llama_index import ServiceContext
 from llama_index import VectorStoreIndex, SimpleDirectoryReader
 from llama_index.embeddings import LangchainEmbedding
 from llama_index import set_global_service_context
+from processors.markdown import MarkdownDocsReader
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
@@ -32,10 +33,16 @@ if __name__ == "__main__":
     p1, p2 = sys.argv[1], sys.argv[2]
 
     if os.path.isfile(p1):
-        documents = SimpleDirectoryReader(input_files=[p1]).load_data()
+        documents = SimpleDirectoryReader(
+            input_files=[p1],
+            exclude=["*.rst", "*.ipynb", "*.py", "*.bat", "*.txt", "*.png", "*.jpg", "*.jpeg", "*.csv", "*.html", "*.js", "*.css", "*.pdf", "*.json"],
+            file_extractor={".md": MarkdownDocsReader()},
+            recursive=True).load_data()
     elif os.path.isdir(p1):
         documents = SimpleDirectoryReader(
             input_dir=p1,
+            exclude=["*.rst", "*.ipynb", "*.py", "*.bat", "*.txt", "*.png", "*.jpg", "*.jpeg", "*.csv", "*.html", "*.js", "*.css", "*.pdf", "*.json"],
+            file_extractor={".md": MarkdownDocsReader()},
             recursive=True,
         ).load_data()
     else:

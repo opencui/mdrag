@@ -8,6 +8,8 @@ from aiohttp import web
 from pybars import Compiler
 import openai
 
+openai.api_key = "sk-***"  # your openai api key you registered on the openai.
+
 from langchain.embeddings import HuggingFaceEmbeddings
 
 from llama_index import StorageContext, ServiceContext, load_index_from_storage
@@ -20,15 +22,10 @@ logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
 routes = web.RouteTableDef()
 
-
 @routes.get("/")
 async def hello(_: web.Request):
     return web.Response(text="Hello, world")
 
-class Turn:
-    def __init__(self, role: str, text: str):
-        self.role = role
-        self.content = text
 
 def conversation(prompt, turns):
     res = [{
@@ -37,6 +34,7 @@ def conversation(prompt, turns):
     }]
     res.extend(turns)
     return res
+
 
 # curl -v -d 'input=中国有多大' http://127.0.0.1:8080/query
 @routes.post("/query")

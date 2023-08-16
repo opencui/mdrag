@@ -4,3 +4,4 @@ aiodns
 aiohttp
 pytest-aiohttp
 pybars3
+openai

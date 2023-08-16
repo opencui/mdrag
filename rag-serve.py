@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
+import json
 import os
 import sys
 import logging
 from aiohttp import web
+from pybars import Compiler
+import openai
 
 from langchain.embeddings import HuggingFaceEmbeddings
 
@@ -23,18 +25,47 @@ routes = web.RouteTableDef()
 async def hello(_: web.Request):
     return web.Response(text="Hello, world")
 
+class Turn:
+    def __init__(self, role: str, text: str):
+        self.role = role
+        self.content = text
+
+def conversation(prompt, turns):
+    res = [{
+        "role": "system",
+        "content": prompt
+    }]
+    res.extend(turns)
+    return res
 
 # curl -v -d 'input=中国有多大' http://127.0.0.1:8080/query
 @routes.post("/query")
 async def query(request: web.Request):
     req = await request.post()
-    input = req.get("input")
-
-    if type(input) != str:
+    prompt = req.get("prompt")
+    turns = req.get("turns")
+    size = len(turns)
+    if len(turns) == 0:
         return web.json_response({"errMsg": f'input type is not str'})
+    if turns[size - 1].role != "user":
+        return web.json_response({"errMsg": f'last turn is not from user'})
 
-    query_engine = request.app['engine']
-    response: RESPONSE_TYPE = query_engine.query(input)
+    user_input = turns[size - 1].text
+
+    retriever = request.app['engine']
+
+    context = retriever.query(user_input)
+    compiler = request.app['compiler'].compiler
+    template = compiler.compile(prompt)
+    new_prompt = template({
+        "query": query,
+        "context": context})
+
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=conversation(new_prompt, turns),
+        temperature=0  # Try to as deterministic as possible.
+    )
 
     resp = {"result": str(response)}
     return web.json_response(resp)
@@ -43,7 +74,9 @@ async def query(request: web.Request):
 def init_app(index):
     app = web.Application()
     app.add_routes(routes)
-    app['engine'] = index.as_query_engine()
+    app['engine'] = index.as_retriever()
+    app['compiler'] = Compiler()
+
     return app
 
 

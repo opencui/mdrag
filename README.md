@@ -17,13 +17,10 @@ it is possible to use other LLMs (llama v2 for example) for generation using Gen
 
 
 ```python
-class Turn:
-    def __init__(self, role: str, text: str):
-        self.role = role
-        self.text = text
 
 # This is the main function that mdrag provides. Notice the prompt is for system, and it uses the handlebars
 # templating, with {{query}} representing the current user input, and {{context}} for retrieved text.
+# each turn is a dictionary with two keys: role and content.
 
 prompt = "We have provided context information below. \n" 
     "---------------------\n"
@@ -31,7 +28,7 @@ prompt = "We have provided context information below. \n"
     "\n---------------------\n"
     "Given this information, please answer the question: {{query}}\n"
 
-def complete(session: list[Turn], prompt: str = prompt): str
+def query(turns: list[dict[str, str]], prompt: str = prompt): str
 ```
 
 ### Install

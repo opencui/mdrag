@@ -140,11 +140,6 @@ class MarkdownReader(BaseReader):
                         "file_name": filename,
                         "content_type": "text",
                         "header": "/".join(header_stack),
-                    },
-                    relationships={
-                        NodeRelationship.PARENT: RelatedNodeInfo(
-                            node_id=markdown_docs[-1].id_,
-                        )
                     }
                 )
             )

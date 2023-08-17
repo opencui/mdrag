@@ -26,6 +26,7 @@ embed_model = LangchainEmbedding(langchain_embedding)
 service_context = ServiceContext.from_defaults(embed_model=embed_model)
 set_global_service_context(service_context)
 
+
 # python rag-index doc_path index_path
 if __name__ == "__main__":
     if len(sys.argv) < 3:

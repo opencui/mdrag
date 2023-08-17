@@ -12,6 +12,7 @@ from llama_index import VectorStoreIndex, SimpleDirectoryReader
 from llama_index.embeddings import LangchainEmbedding
 from llama_index import set_global_service_context
 from processors.markdown import MarkdownReader
+from pathlib import Path
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
@@ -36,7 +37,7 @@ if __name__ == "__main__":
     documents = []
     for p1 in sys.argv[2:]:
         if os.path.isfile(p1) and p1.endswith(".md"):
-            documents.extend(MarkdownReader().load_data(p1))
+            documents.extend(MarkdownReader().load_data(Path(p1)))
         elif os.path.isdir(p1):
             documents.extend(
                 SimpleDirectoryReader(
@@ -44,12 +45,13 @@ if __name__ == "__main__":
                     exclude=["*.rst", "*.ipynb", "*.py", "*.bat", "*.txt", "*.png", "*.jpg", "*.jpeg", "*.csv", "*.html",
                              "*.js", "*.css", "*.pdf", "*.json"],
                     file_extractor={".md": MarkdownReader()},
-                    recursive=True).load_data())
+                    recursive=True,
+                ).load_data())
 
     # exclude these things from considerations.
     for doc in documents:
+        doc.excluded_llm_metadata_keys = ["file_name", "content_type"]
         doc.excluded_embed_metadata_keys = ["file_name", "content_type"]
-        doc.excluded_llm_metadata_keys=["file_name", "content_type"]
 
     try:
         index = VectorStoreIndex.from_documents(documents)

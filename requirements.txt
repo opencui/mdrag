@@ -1,7 +1,8 @@
-llama-index
-
-aiodns
-aiohttp
-pytest-aiohttp
 pybars3
-openai
+llama-index==0.7.2
+sentence-transformers==2.2.2
+
+#aiodns
+#aiohttp
+#openai
+#pytest-aiohttp

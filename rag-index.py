@@ -38,15 +38,18 @@ if __name__ == "__main__":
         if os.path.isfile(p1) and p1.endswith(".md"):
             documents.extend(MarkdownReader().load_data(p1))
         elif os.path.isdir(p1):
-            documents.extend(SimpleDirectoryReader(
-                input_dir=p1,
-                exclude=["*.rst", "*.ipynb", "*.py", "*.bat", "*.txt", "*.png", "*.jpg", "*.jpeg", "*.csv", "*.html",
-                         "*.js", "*.css", "*.pdf", "*.json"],
-                file_extractor={".md": MarkdownReader()},
-                excluded_embed_metadata_keys=["file_name", "content_type"],
-                excluded_llm_metadata_keys=["file_name", "content_type"],
-                recursive=True,
-            ).load_data())
+            documents.extend(
+                SimpleDirectoryReader(
+                    input_dir=p1,
+                    exclude=["*.rst", "*.ipynb", "*.py", "*.bat", "*.txt", "*.png", "*.jpg", "*.jpeg", "*.csv", "*.html",
+                             "*.js", "*.css", "*.pdf", "*.json"],
+                    file_extractor={".md": MarkdownReader()},
+                    recursive=True).load_data())
+
+    # exclude these things from considerations.
+    for doc in documents:
+        doc.excluded_embed_metadata_keys = ["file_name", "content_type"]
+        doc.excluded_llm_metadata_keys=["file_name", "content_type"]
 
     try:
         index = VectorStoreIndex.from_documents(documents)

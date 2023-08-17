@@ -33,6 +33,7 @@ class MarkdownReader(BaseReader):
         lines = markdown_text.split("\n")
 
         header_stack = []
+        node_stack = []
         current_header_level = 0
         current_text = ""
         current_code_block = ""

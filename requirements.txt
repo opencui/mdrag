@@ -1,8 +1,10 @@
 pybars3
 llama-index==0.8.4
 sentence-transformers==2.2.2
+InstructorEmbedding
 
 #aiodns
 #aiohttp
 #openai
 #pytest-aiohttp
+

@@ -31,7 +31,7 @@ class InstructorEmbeddings(BaseEmbedding):
         return embeddings.tolist()
 
 
-def get_embedding():
+def get_embedding(query: bool = True):
     return HuggingFaceEmbeddings(
         model_name="sentence-transformers/multi-qa-mpnet-base-dot-v1",
         model_kwargs={'device': 'cpu'}

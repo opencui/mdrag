@@ -13,6 +13,8 @@ from llama_index.embeddings import LangchainEmbedding
 from llama_index import StorageContext, ServiceContext, load_index_from_storage
 from langchain.embeddings import HuggingFaceEmbeddings
 
+from llama_index.indices.postprocessor import AutoPrevNextNodePostprocessor
+
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
@@ -47,9 +49,11 @@ async def query(request: web.Request):
 
     retriever = request.app['engine']
 
+    # What is the result here?
     context = retriever.retrieve(user_input)
-    compiler = request.app['compiler']
-    template = compiler.compile(prompt)
+
+    template = request.app['compiler'].compile(prompt)
+
     new_prompt = template({"query": user_input, "context": context})
 
     async with ClientSession(trust_env=True) as session:

@@ -1,5 +1,5 @@
 pybars3
-llama-index==0.7.2
+llama-index==0.8.4
 sentence-transformers==2.2.2
 
 #aiodns

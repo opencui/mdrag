@@ -6,6 +6,20 @@ from llama_index.readers.base import BaseReader
 from llama_index.schema import Document, NodeRelationship, RelatedNodeInfo
 
 
+class NodeStack:
+    def __init__(self):
+        self.stack = []
+
+    def append(self, x):
+        self.stack.append(x)
+
+    def pop(self):
+        self.stack.pop()
+
+    def id_on_top(self):
+        return self.stack[-1].id_ if len(self.stack) > 0 else -1
+
+
 class MarkdownReader(BaseReader):
     """
     MarkdownDocsReader
@@ -33,7 +47,7 @@ class MarkdownReader(BaseReader):
         lines = markdown_text.split("\n")
 
         header_stack = []
-        node_stack = []
+        header_node_stack = NodeStack()
         current_header_level = 0
         current_text = ""
         current_code_block = ""
@@ -42,6 +56,7 @@ class MarkdownReader(BaseReader):
             header_match = re.match(r"^#+\s", line)
             code_match = re.match(r"^```", line)
             if header_match:
+                # create and add node for the current header.
                 markdown_docs.append(
                      Document(
                         text=line.strip(),
@@ -49,11 +64,16 @@ class MarkdownReader(BaseReader):
                             "file_name": filename,
                             "content_type": "header",
                             "header": "/".join(header_stack),
+                        },
+                        relationships={
+                            NodeRelationship.PARENT: RelatedNodeInfo(
+                                node_id=header_node_stack.id_on_top()
+                            )
                         }
-                    )
+                     )
                 )
 
-                # when we find the next header, save the current text
+                # when we find the next header, save the current text accumulated.
                 if current_text.strip() != "":
                     markdown_docs.append(
                         Document(
@@ -65,22 +85,27 @@ class MarkdownReader(BaseReader):
                             },
                             relationships={
                                 NodeRelationship.PARENT: RelatedNodeInfo(
-                                    node_id=markdown_docs[-1].id_,
+                                    node_id=header_node_stack.id_on_top()
                                 )
                             }
                         )
                     )
                     current_text = ""
 
-                # update the header stack
+                # update the header stack and header node stack.
                 header_level = line.count("#")
                 header_text = line.replace("#", "").strip()
                 if header_level > current_header_level:
                     header_stack.append(header_text)
+                    # push the current header node to node stack.
+                    header_node_stack.append(markdown_docs[-1])
                     current_header_level = header_level
                 else:
                     header_stack.pop()
+                    header_node_stack.pop()
                     header_stack.append(header_text)
+                    header_node_stack.append(markdown_docs[-1])
+
             elif code_match or current_code_block:
                 # Similarly, when we find the second match of code block, we
                 # output code block.
@@ -123,6 +148,11 @@ class MarkdownReader(BaseReader):
                                 "content_type": "text",
                                 "header": "/".join(header_stack),
                             },
+                            relationships={
+                                NodeRelationship.PARENT: RelatedNodeInfo(
+                                    node_id=header_node_stack.id_on_top()
+                                )
+                            }
                         )
                     )
                     current_text = ""
@@ -140,6 +170,11 @@ class MarkdownReader(BaseReader):
                         "file_name": filename,
                         "content_type": "text",
                         "header": "/".join(header_stack),
+                    },
+                    relationships={
+                        NodeRelationship.PARENT: RelatedNodeInfo(
+                            node_id=header_node_stack.id_on_top()
+                        )
                     }
                 )
             )

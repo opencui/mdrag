@@ -11,6 +11,7 @@ from llama_index import ServiceContext
 from llama_index import VectorStoreIndex, SimpleDirectoryReader
 from llama_index import set_global_service_context
 from processors.markdown import MarkdownReader
+from processors.embedding import get_embedding
 from llama_index.node_parser.extractors import (
     MetadataExtractor,
     SummaryExtractor,
@@ -29,9 +30,7 @@ logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 service_context = ServiceContext.from_defaults(
     llm_predictor=None,
     llm=None,
-    embed_model=HuggingFaceEmbeddings(
-        model_name="sentence-transformers/multi-qa-mpnet-base-dot-v1",
-        model_kwargs={'device': 'cpu'}))
+    embed_model=get_embedding())
 
 set_global_service_context(service_context)
 

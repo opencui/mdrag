@@ -12,7 +12,7 @@ from llama_index import set_global_service_context
 from llama_index.embeddings import LangchainEmbedding
 from llama_index import StorageContext, ServiceContext, load_index_from_storage
 from langchain.embeddings import HuggingFaceEmbeddings
-
+from processors.embedding import get_embedding
 from llama_index.indices.postprocessor import AutoPrevNextNodePostprocessor
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
@@ -91,15 +91,9 @@ if __name__ == "__main__":
     if not os.path.isdir(p):
         sys.exit(1)
 
-    model_name = "sentence-transformers/multi-qa-mpnet-base-dot-v1"
+    service_context = ServiceContext.from_defaults(
+        embed_model=get_embedding())
 
-    langchain_embedding = HuggingFaceEmbeddings(
-        model_name=model_name,
-        model_kwargs={'device': 'cpu'},
-    )
-
-    embed_model = LangchainEmbedding(langchain_embedding)
-    service_context = ServiceContext.from_defaults(embed_model=embed_model)
     set_global_service_context(service_context)
 
     storage_context = StorageContext.from_defaults(persist_dir=p)

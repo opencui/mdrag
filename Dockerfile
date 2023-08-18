@@ -8,6 +8,6 @@ RUN  echo "deb http://mirrors.tuna.tsinghua.edu.cn/ubuntu/ focal           main 
      apt-get update && apt-get install -y $PKG
 RUN  ln -s /usr/bin/python3 /usr/bin/python
 
-WORKSPACE /data/
+WORKDIR /data/
 COPY . .
 RUN  python3 -m pip install -U pip && python3 -m pip install --no-cache-dir -r requirements.txt

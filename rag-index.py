@@ -38,7 +38,7 @@ set_global_service_context(service_context)
 # python rag-index doc_path index_path
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        sys.exit(1)
+        sys.exit(0)
 
     # We assume that there output directory is the first argument, and the rest is input directory
     p2 = sys.argv[1]

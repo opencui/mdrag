@@ -11,6 +11,15 @@ from llama_index import ServiceContext
 from llama_index import VectorStoreIndex, SimpleDirectoryReader
 from llama_index import set_global_service_context
 from processors.markdown import MarkdownReader
+from llama_index.node_parser.extractors import (
+    MetadataExtractor,
+    SummaryExtractor,
+    QuestionsAnsweredExtractor,
+    TitleExtractor,
+    KeywordExtractor,
+    EntityExtractor,
+    MetadataFeatureExtractor,
+)
 from pathlib import Path
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
@@ -18,6 +27,8 @@ logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
 # init download hugging fact model
 service_context = ServiceContext.from_defaults(
+    llm_predictor=None,
+    llm=None,
     embed_model=HuggingFaceEmbeddings(
         model_name="sentence-transformers/multi-qa-mpnet-base-dot-v1",
         model_kwargs={'device': 'cpu'}))

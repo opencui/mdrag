@@ -17,7 +17,7 @@ class NodeStack:
         self.stack.pop()
 
     def id_on_top(self):
-        return self.stack[-1]._id if len(self.stack) > 0 else -1
+        return self.stack[-1].id_ if len(self.stack) > 0 else -1
 
 
 class MarkdownReader(BaseReader):

@@ -49,9 +49,11 @@ async def query(request: web.Request):
 
     retriever = request.app['engine']
 
+    # What is the result here?
     context = retriever.retrieve(user_input)
-    compiler = request.app['compiler']
-    template = compiler.compile(prompt)
+
+    template = request.app['compiler'].compile(prompt)
+
     new_prompt = template({"query": user_input, "context": context})
 
     async with ClientSession(trust_env=True) as session:

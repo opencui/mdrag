@@ -9,9 +9,7 @@ import openai
 from aiohttp import web, ClientSession
 from pybars import Compiler
 from llama_index import set_global_service_context
-from llama_index.embeddings import LangchainEmbedding
 from llama_index import StorageContext, ServiceContext, load_index_from_storage
-from langchain.embeddings import HuggingFaceEmbeddings
 from processors.embedding import get_embedding
 from llama_index.indices.postprocessor import AutoPrevNextNodePostprocessor
 
@@ -65,6 +63,29 @@ async def query(request: web.Request):
         )
 
     resp = {"reply": response.choices[0].message["content"]}
+    return web.json_response(resp)
+
+
+@routes.post("/retrieve")
+async def retrieve(request: web.Request):
+    req = await request.json()
+    turns = req.get("turns", [])
+    prompt = req.get("prompt", "")
+    if len(prompt) == 0:
+        prompt = request.app['prompt']
+    if len(turns) == 0:
+        return web.json_response({"errMsg": f'input type is not str'})
+    if turns[-1].get("role", "") != "user":
+        return web.json_response({"errMsg": f'last turn is not from user'})
+
+    user_input = turns[-1].get("content", "")
+
+    retriever = request.app['engine']
+
+    # What is the result here?
+    context = retriever.retrieve(user_input)
+
+    resp = {"reply": context}
     return web.json_response(resp)
 
 

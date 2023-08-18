@@ -41,16 +41,16 @@ if __name__ == "__main__":
         sys.exit(0)
 
     # We assume that there output directory is the first argument, and the rest is input directory
-    p2 = sys.argv[1]
+    output = sys.argv[1]
 
     documents = []
-    for p1 in sys.argv[2:]:
-        if os.path.isfile(p1) and p1.endswith(".md"):
-            documents.extend(MarkdownReader().load_data(Path(p1)))
-        elif os.path.isdir(p1):
+    for file_path in sys.argv[2:]:
+        if os.path.isfile(file_path) and file_path.endswith(".md"):
+            documents.extend(MarkdownReader().load_data(Path(file_path)))
+        elif os.path.isdir(file_path):
             documents.extend(
                 SimpleDirectoryReader(
-                    input_dir=p1,
+                    input_dir=file_path,
                     exclude=["*.rst", "*.ipynb", "*.py", "*.bat", "*.txt", "*.png", "*.jpg", "*.jpeg", "*.csv", "*.html",
                              "*.js", "*.css", "*.pdf", "*.json"],
                     file_extractor={".md": MarkdownReader()},
@@ -64,7 +64,7 @@ if __name__ == "__main__":
 
     try:
         index = VectorStoreIndex.from_documents(documents)
-        index.storage_context.persist(persist_dir=p2)
+        index.storage_context.persist(persist_dir=output)
     except Exception as e:
         print(str(e))
-        shutil.rmtree(p2, ignore_errors=True)
+        shutil.rmtree(output, ignore_errors=True)

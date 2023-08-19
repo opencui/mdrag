@@ -11,6 +11,8 @@ from pybars import Compiler
 from llama_index import set_global_service_context
 from llama_index import StorageContext, ServiceContext, load_index_from_storage
 from processors.embedding import get_embedding
+from processors.retriever import HybridRetriever
+
 from llama_index.indices.postprocessor import AutoPrevNextNodePostprocessor
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
@@ -94,7 +96,11 @@ async def retrieve(request: web.Request):
 def init_app(embedding_index, keyword_index):
     app = web.Application()
     app.add_routes(routes)
-    app['engine'] = embedding_index.as_retriever()
+    app['engine'] = HybridRetriever(
+        embedding_index.as_retriever(),
+        keyword_index.as_retriever()
+    )
+
     app['compiler'] = Compiler()
     app['prompt'] = "We have provided context information below. \n" \
         "---------------------\n"\

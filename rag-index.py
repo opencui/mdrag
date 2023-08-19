@@ -6,7 +6,6 @@ import sys
 import shutil
 import logging
 
-from langchain.embeddings import HuggingFaceEmbeddings
 from llama_index import ServiceContext, StorageContext
 from llama_index import VectorStoreIndex, SimpleDirectoryReader, SimpleKeywordTableIndex
 from llama_index import set_global_service_context
@@ -27,9 +26,7 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
 
-
-
-# python rag-index doc_path index_path
+# python rag-index index_persist_path collection_path
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         sys.exit(0)

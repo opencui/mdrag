@@ -66,9 +66,9 @@ if __name__ == "__main__":
         embedding_index = VectorStoreIndex.from_documents(documents)
         keyword_index = SimpleKeywordTableIndex(documents)
 
-        embedding_index.set_index_id(0)
+        embedding_index.set_index_id("embedding")
         embedding_index.storage_context.persist(persist_dir=output)
-        keyword_index.set_index_id(1)
+        keyword_index.set_index_id("keyword")
         keyword_index.storage_context.persist(persist_dir=output)
     except Exception as e:
         print(str(e))

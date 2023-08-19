@@ -7,5 +7,5 @@ python rag-index.py tmp doc.md
 
 nohup python rag-serve.py tmp 2>&1 &
 sleep 20
-curl -v -d '{"turns":[{"role": "user", "content" : "沃森生物?"}]}' 127.0.0.1:8080/query | jq .reply | grep "云南沃森生物技术股份有限公司" || exit 1
+curl -v -d '{"turns":[{"role": "user", "content" : "沃森生物?"}]}' 127.0.0.1:8080/query | tee /dev/stderr | jq .reply | grep "云南沃森生物技术股份有限公司" || exit 1
 sleep 1

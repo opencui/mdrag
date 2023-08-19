@@ -67,7 +67,7 @@ if __name__ == "__main__":
         keyword_index = SimpleKeywordTableIndex(documents)
 
         embedding_index.storage_context.persist(persist_dir=output)
-        keyword_index.storage_context.persist(persist_dir=output)
+        #keyword_index.storage_context.persist(persist_dir=output)
     except Exception as e:
         print(str(e))
         shutil.rmtree(output, ignore_errors=True)

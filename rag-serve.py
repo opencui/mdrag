@@ -122,4 +122,4 @@ if __name__ == "__main__":
     storage_context = StorageContext.from_defaults(persist_dir=p)
     embedding_index = load_index_from_storage(storage_context, index_id=0)
     keyword_index = load_index_from_storage(storage_context, index_id=1)
-    web.run_app(init_app(index))
+    web.run_app(init_app(embedding_index, keyword_index))

@@ -91,10 +91,10 @@ async def retrieve(request: web.Request):
     return web.json_response(resp)
 
 
-def init_app(index):
+def init_app(embedding_index, keyword_index):
     app = web.Application()
     app.add_routes(routes)
-    app['engine'] = index.as_retriever()
+    app['engine'] = embedding_index.as_retriever()
     app['compiler'] = Compiler()
     app['prompt'] = "We have provided context information below. \n" \
         "---------------------\n"\
@@ -120,5 +120,6 @@ if __name__ == "__main__":
     set_global_service_context(service_context)
 
     storage_context = StorageContext.from_defaults(persist_dir=p)
-    index = load_index_from_storage(storage_context)
+    embedding_index = load_index_from_storage(storage_context, index_id=0)
+    keyword_index = load_index_from_storage(storage_context, index_id=1)
     web.run_app(init_app(index))

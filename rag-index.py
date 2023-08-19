@@ -7,7 +7,7 @@ import shutil
 import logging
 
 from langchain.embeddings import HuggingFaceEmbeddings
-from llama_index import ServiceContext
+from llama_index import ServiceContext, StorageContext
 from llama_index import VectorStoreIndex, SimpleDirectoryReader, SimpleKeywordTableIndex
 from llama_index import set_global_service_context
 from processors.markdown import MarkdownReader
@@ -26,13 +26,7 @@ from pathlib import Path
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
-# init download hugging fact model
-service_context = ServiceContext.from_defaults(
-    llm_predictor=None,
-    llm=None,
-    embed_model=get_embedding())
 
-set_global_service_context(service_context)
 
 
 # python rag-index doc_path index_path
@@ -42,6 +36,16 @@ if __name__ == "__main__":
 
     # We assume that there output directory is the first argument, and the rest is input directory
     output = sys.argv[1]
+
+    # init download hugging fact model
+    service_context = ServiceContext.from_defaults(
+        llm_predictor=None,
+        llm=None,
+        embed_model=get_embedding())
+
+    storage_context = StorageContext.from_defaults()
+
+    set_global_service_context(service_context)
 
     documents = []
     for file_path in sys.argv[2:]:
@@ -63,8 +67,8 @@ if __name__ == "__main__":
         doc.excluded_embed_metadata_keys = ["file_name", "content_type"]
 
     try:
-        embedding_index = VectorStoreIndex.from_documents(documents)
-        keyword_index = SimpleKeywordTableIndex(documents)
+        embedding_index = VectorStoreIndex.from_documents(documents, storage_context=storage_context)
+        keyword_index = SimpleKeywordTableIndex(documents, storage_context=storage_context)
 
         embedding_index.set_index_id("embedding")
         embedding_index.storage_context.persist(persist_dir=output)

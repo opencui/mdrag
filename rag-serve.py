@@ -54,6 +54,8 @@ async def query(request: web.Request):
 
     new_prompt = template({"query": user_input, "context": context})
 
+    # We should consider using https://huggingface.co/TheBloke/Llama-2-13B-chat-GGML
+    # which can be used on the cpu as well.
     async with ClientSession(trust_env=True) as session:
         openai.aiosession.set(session)
         response = await openai.ChatCompletion.acreate(
@@ -102,9 +104,9 @@ def init_app(index):
     return app
 
 
-# OPENAI_API_KEY=xxx python index_path
 if __name__ == "__main__":
     if len(sys.argv) != 2:
+        print("Where is the index saved?")
         sys.exit(1)
 
     p = sys.argv[1]

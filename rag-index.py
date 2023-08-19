@@ -8,7 +8,7 @@ import logging
 
 from langchain.embeddings import HuggingFaceEmbeddings
 from llama_index import ServiceContext
-from llama_index import VectorStoreIndex, SimpleDirectoryReader
+from llama_index import VectorStoreIndex, SimpleDirectoryReader, SimpleKeywordTableIndex
 from llama_index import set_global_service_context
 from processors.markdown import MarkdownReader
 from processors.embedding import get_embedding
@@ -63,8 +63,11 @@ if __name__ == "__main__":
         doc.excluded_embed_metadata_keys = ["file_name", "content_type"]
 
     try:
-        index = VectorStoreIndex.from_documents(documents)
-        index.storage_context.persist(persist_dir=output)
+        embedding_index = VectorStoreIndex.from_documents(documents)
+        keyword_index = SimpleKeywordTableIndex(documents)
+
+        embedding_index.storage_context.persist(persist_dir=output)
+        keyword_index.storage_context.persist(persist_dir=output)
     except Exception as e:
         print(str(e))
         shutil.rmtree(output, ignore_errors=True)

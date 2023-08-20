@@ -4,7 +4,6 @@ sentence-transformers==2.2.2
 InstructorEmbedding
 aiohttp
 llama-cpp-python
-auto-gptq
 gin-config
 
 #aiodns

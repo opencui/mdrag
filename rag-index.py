@@ -40,7 +40,7 @@ if __name__ == "__main__":
         llm=None,
         embed_model=get_embedding())
 
-    storage_context = StorageContext.from_defaults()
+    storage_context = StorageContext.from_defaults(persist_dir=output)
 
     set_global_service_context(service_context)
 
@@ -68,9 +68,9 @@ if __name__ == "__main__":
         keyword_index = SimpleKeywordTableIndex(documents, storage_context=storage_context)
 
         embedding_index.set_index_id("embedding")
-        embedding_index.storage_context.persist(persist_dir=output)
+        embedding_index.storage_context.persist()
         keyword_index.set_index_id("keyword")
-        keyword_index.storage_context.persist(persist_dir=output)
+        keyword_index.storage_context.persist()
     except Exception as e:
         print(str(e))
         shutil.rmtree(output, ignore_errors=True)

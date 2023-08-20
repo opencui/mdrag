@@ -12,8 +12,7 @@ from llama_index import set_global_service_context
 from llama_index import StorageContext, ServiceContext, load_index_from_storage
 from processors.embedding import get_embedding
 from processors.retriever import HybridRetriever
-
-from llama_index.indices.postprocessor import AutoPrevNextNodePostprocessor
+from processors.llm import get_generator
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
@@ -56,17 +55,11 @@ async def query(request: web.Request):
 
     new_prompt = template({"query": user_input, "context": context})
 
-    # We should consider using https://huggingface.co/TheBloke/Llama-2-13B-chat-GGML
-    # which can be used on the cpu as well.
-    async with ClientSession(trust_env=True) as session:
-        openai.aiosession.set(session)
-        response = await openai.ChatCompletion.acreate(
-            model="gpt-3.5-turbo",
-            messages=conversation(new_prompt, turns),
-            temperature=0  # Try to as deterministic as possible.
-        )
+    llm = request.app['llm']
 
-    resp = {"reply": response.choices[0].message["content"]}
+    # So that we can use different llm.
+    resp = await llm.agenerate(new_prompt, turns)
+
     return web.json_response(resp)
 
 
@@ -100,6 +93,7 @@ def init_app(embedding_index, keyword_index):
         embedding_index.as_retriever(),
         keyword_index.as_retriever()
     )
+    app["llm"] = get_generator()
 
     app['compiler'] = Compiler()
     app['prompt'] = "We have provided context information below. \n" \

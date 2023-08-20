@@ -24,7 +24,7 @@ class OpenAIGenerator:
         return res
 
     async def agenerate(self, system_prompt, turns):
-        with ClientSession(trust_env=True) as session:
+        async with ClientSession(trust_env=True) as session:
             openai.aiosession.set(session)
             response = await openai.ChatCompletion.acreate(
                 model="gpt-3.5-turbo",

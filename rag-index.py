@@ -5,7 +5,7 @@ import os
 import sys
 import shutil
 import logging
-
+import gin
 from llama_index import ServiceContext, StorageContext
 from llama_index import VectorStoreIndex, SimpleDirectoryReader, SimpleKeywordTableIndex
 from llama_index import set_global_service_context
@@ -30,6 +30,8 @@ logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         sys.exit(0)
+
+    gin.parse_config_file('config.gin')
 
     # We assume that there output directory is the first argument, and the rest is input directory
     output = sys.argv[1]

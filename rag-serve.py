@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
+import dataclasses
 import os
 import sys
 import logging
-import openai
+import gin
 
-from aiohttp import web, ClientSession
+from aiohttp import web
 from pybars import Compiler
 from llama_index import set_global_service_context
 from llama_index import StorageContext, ServiceContext, load_index_from_storage
@@ -25,22 +25,21 @@ async def hello(_: web.Request):
     return web.Response(text="Hello, world")
 
 
-def conversation(prompt, turns):
-    res = [{"role": "system", "content": prompt}]
-    res.extend(turns)
-    return res
-
-
 # curl -v -d 'input=中国有多大' http://127.0.0.1:8080/query
 @routes.post("/query")
 async def query(request: web.Request):
     req = await request.json()
     turns = req.get("turns", [])
     prompt = req.get("prompt", "")
+
     if len(prompt) == 0:
         prompt = request.app['prompt']
+
     if len(turns) == 0:
         return web.json_response({"errMsg": f'input type is not str'})
+
+    if turns[0].get("role", "") != "user":
+        return web.json_response({"errMsg": f'first turn is not from user'})
     if turns[-1].get("role", "") != "user":
         return web.json_response({"errMsg": f'last turn is not from user'})
 
@@ -60,7 +59,7 @@ async def query(request: web.Request):
     # So that we can use different llm.
     resp = await llm.agenerate(new_prompt, turns)
 
-    return web.json_response(resp)
+    return web.json_response(dataclasses.asdict(resp))
 
 
 @routes.post("/retrieve")

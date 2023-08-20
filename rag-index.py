@@ -31,8 +31,6 @@ if __name__ == "__main__":
     if len(sys.argv) < 3:
         sys.exit(0)
 
-    gin.parse_config_file('config.gin')
-
     # We assume that there output directory is the first argument, and the rest is input directory
     output = sys.argv[1]
 

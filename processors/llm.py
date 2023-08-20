@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 @gin.configurable
 def get_generator(model):
-    logger.log(f"Using {model} as generator...")
+    logging.debug(f"Using {model} as generator...")
     models = model.split("/")
     if models[0] == "openai":
         return OpenAIGenerator(models[1])

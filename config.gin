@@ -1,0 +1,6 @@
+# Configuration for indexing
+
+
+
+# Configuration of serving
+get_generator.model = "openai/gpt-3.5-turbo"

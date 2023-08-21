@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
+import dataclasses
 import os
 import sys
 import logging
-import openai
+import gin
 
-from aiohttp import web, ClientSession
+from aiohttp import web
 from pybars import Compiler
 from llama_index import set_global_service_context
 from llama_index import StorageContext, ServiceContext, load_index_from_storage
 from processors.embedding import get_embedding
-from llama_index.indices.postprocessor import AutoPrevNextNodePostprocessor
+from processors.retriever import HybridRetriever
+from processors.llm import get_generator
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
@@ -24,22 +25,21 @@ async def hello(_: web.Request):
     return web.Response(text="Hello, world")
 
 
-def conversation(prompt, turns):
-    res = [{"role": "system", "content": prompt}]
-    res.extend(turns)
-    return res
-
-
 # curl -v -d 'input=中国有多大' http://127.0.0.1:8080/query
 @routes.post("/query")
 async def query(request: web.Request):
     req = await request.json()
     turns = req.get("turns", [])
     prompt = req.get("prompt", "")
+
     if len(prompt) == 0:
         prompt = request.app['prompt']
+
     if len(turns) == 0:
         return web.json_response({"errMsg": f'input type is not str'})
+
+    if turns[0].get("role", "") != "user":
+        return web.json_response({"errMsg": f'first turn is not from user'})
     if turns[-1].get("role", "") != "user":
         return web.json_response({"errMsg": f'last turn is not from user'})
 
@@ -54,16 +54,12 @@ async def query(request: web.Request):
 
     new_prompt = template({"query": user_input, "context": context})
 
-    async with ClientSession(trust_env=True) as session:
-        openai.aiosession.set(session)
-        response = await openai.ChatCompletion.acreate(
-            model="gpt-3.5-turbo",
-            messages=conversation(new_prompt, turns),
-            temperature=0  # Try to as deterministic as possible.
-        )
+    llm = request.app['llm']
 
-    resp = {"reply": response.choices[0].message["content"]}
-    return web.json_response(resp)
+    # So that we can use different llm.
+    resp = await llm.agenerate(new_prompt, turns)
+
+    return web.json_response(dataclasses.asdict(resp))
 
 
 @routes.post("/retrieve")
@@ -89,10 +85,15 @@ async def retrieve(request: web.Request):
     return web.json_response(resp)
 
 
-def init_app(index):
+def init_app(embedding_index, keyword_index):
     app = web.Application()
     app.add_routes(routes)
-    app['engine'] = index.as_retriever()
+    app['engine'] = HybridRetriever(
+        embedding_index.as_retriever(),
+        keyword_index.as_retriever()
+    )
+    app["llm"] = get_generator()
+
     app['compiler'] = Compiler()
     app['prompt'] = "We have provided context information below. \n" \
         "---------------------\n"\
@@ -102,12 +103,14 @@ def init_app(index):
     return app
 
 
-# OPENAI_API_KEY=xxx python index_path
 if __name__ == "__main__":
     if len(sys.argv) != 2:
+        print("Where is the index saved?")
         sys.exit(1)
 
     p = sys.argv[1]
+
+    gin.parse_config_file('config.gin')
 
     if not os.path.isdir(p):
         sys.exit(1)
@@ -118,5 +121,6 @@ if __name__ == "__main__":
     set_global_service_context(service_context)
 
     storage_context = StorageContext.from_defaults(persist_dir=p)
-    index = load_index_from_storage(storage_context)
-    web.run_app(init_app(index))
+    embedding_index = load_index_from_storage(storage_context, index_id="embedding")
+    keyword_index = load_index_from_storage(storage_context, index_id="keyword")
+    web.run_app(init_app(embedding_index, keyword_index))

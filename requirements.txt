@@ -2,9 +2,11 @@ pybars3
 llama-index==0.8.4
 sentence-transformers==2.2.2
 InstructorEmbedding
+aiohttp
+llama-cpp-python
+gin-config
 
 #aiodns
-#aiohttp
 #openai
 #pytest-aiohttp
 

@@ -5,8 +5,7 @@ InstructorEmbedding
 aiohttp~=3.8.4
 llama-cpp-python
 gin-config
-flash-attn
-packaging
+
 
 #aiodns
 #openai

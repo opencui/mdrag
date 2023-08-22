@@ -24,7 +24,6 @@ def get_generator(model):
 @dataclass
 class Response:
     reply: str
-    raw: Any = None
 
 
 class OpenAIGenerator:
@@ -46,7 +45,7 @@ class OpenAIGenerator:
                 messages=OpenAIGenerator.conversation(system_prompt, turns),
                 temperature=0  # Try to as deterministic as possible.
             )
-        return Response(response.choices[0].message["content"], response)
+        return Response(response.choices[0].message["content"])
 
 
 def llama2_prompt(system_prompt, turns):
@@ -77,7 +76,7 @@ class LlamaGenerator:
             stop=self.stop,
             temperature=self.temperature
         )
-        return Response(output["choices"][0]["text"], output)
+        return Response(output["choices"][0]["text"])
 
 
 class HuggingFaceGenerator:

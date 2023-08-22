@@ -8,8 +8,6 @@ from typing import Any, List, Optional
 import logging
 import gin
 
-logger = logging.getLogger(__name__)
-
 
 @gin.configurable
 def get_generator(model):
@@ -17,6 +15,8 @@ def get_generator(model):
     models = model.split("/")
     if models[0] == "openai":
         return OpenAIGenerator(models[1])
+    elif model.startswith(".") and model.endswith("bin"):
+        return LlamaGenerator(model)
     else:
         return HuggingFaceGenerator(model)
 
@@ -48,13 +48,44 @@ class OpenAIGenerator:
         return Response(response.choices[0].message["content"])
 
 
+def llama2_prompt(system_prompt, turns):
+    res = f"""<s>[INST] <<SYS>>{system_prompt}<</SYS>>\n"""
+    res += f"""{turns[0]["content"]}  [/INST] """
+    num_turns = int(len(turns)/2)
+    for i in range(num_turns):
+        res += f"""{turns[2*i + 1]["content"]} </s><s>[INST] {turns[2*i + 2]["content"]} [/INST]"""
+    return res
+
+
+class LlamaGenerator:
+    def __init__(self, model_path, n_ctx=4096):
+        from llama_cpp import Llama
+        self.llm = Llama(model_path=model_path, n_ctx=n_ctx)
+        self.max_tokens = 512
+        self.temperature = 0
+        self.top_p = 0.5
+        self.echo = False
+        self.stop = ["#"]
+
+    async def agenerate(self, system_prompt, turns) -> Response:
+        prompt = llama2_prompt(system_prompt, turns)
+        output = self.llm(
+            prompt,
+            max_tokens=self.max_tokens,
+            echo=self.echo,
+            stop=self.stop,
+            temperature=self.temperature
+        )
+        return Response(output["choices"][0]["text"])
+
+
 class HuggingFaceGenerator:
     """HuggingFace generator."""
     def __init__(
         self,
-        context_window: int = 4096,
+        model_name: str,
+        context_window: int = 32*1024,
         max_new_tokens: int = 256,
-        model_name: str = "StabilityAI/stablelm-tuned-alpha-3b",
         device_map: str = "auto",
         stopping_ids: Optional[List[int]] = None,
         tokenizer_kwargs: Optional[dict] = None,
@@ -83,7 +114,7 @@ class HuggingFaceGenerator:
             config_dict.get("max_position_embeddings", context_window)
         )
         if model_context_window and model_context_window < context_window:
-            logger.warning(
+            logging.warning(
                 f"Supplied context_window {context_window} is greater "
                 "than the model's max input size {model_context_window}. "
                 "Disable this warning by setting a lower context_window."
@@ -124,18 +155,9 @@ class HuggingFaceGenerator:
 
         self._stopping_criteria = StoppingCriteriaList([StopOnTokens()])
 
-    @classmethod
-    def conversation(cls, system_prompt, turns):
-        res = f"""<s>[INST] <<SYS>>{system_prompt}<</SYS>>\n"""
-        res += f"""{turns[0]["content"]}  [/INST] """
-        num_turns = int(len(turns)/2)
-        for i in range(num_turns):
-            res += f"""{turns[2*i + 1]["content"]} </s><s>[INST] {turns[2*i + 2]["content"]} [/INST]"""
-        return res
-
     async def agenerate(self, system_prompt, turns) -> Response:
         """Completion endpoint."""
-        full_prompt = HuggingFaceGenerator.conversation(system_prompt, turns)
+        full_prompt = llama2_prompt(system_prompt, turns)
         inputs = self.tokenizer(full_prompt, return_tensors="pt")
         inputs = inputs.to(self.model.device)
 

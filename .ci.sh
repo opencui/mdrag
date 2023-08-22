@@ -3,7 +3,7 @@ sudo apt install -y jq
 
 mkdir tmp
 
-python rag-index.py tmp https://github.com/framely/community
+# python rag-index.py tmp https://github.com/framely/community
 
 echo -n "云南沃森生物技术股份有限公司成立于 2001 年,经过二十余年的发展,现已成为国内专业从事人用疫苗等生物技术药物集研发、生产、销售于一体的现代高技术生物制药企业。" >doc.md
 python rag-index.py tmp doc.md

@@ -1,6 +1,13 @@
 # Configuration for indexing
 
 
-
 # Configuration of serving
-get_generator.model = "openai/gpt-3.5-turbo"
+#get_generator.model = "openai/gpt-3.5-turbo"
+
+# Download from: https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGML, in Files and versions
+get_generator.model = "./models/llama-2-7b-chat.ggmlv3.q4_1.bin"
+
+#get_generator.model = "togethercomputer/Llama-2-7B-32K-Instruct"
+
+# If the model supports a bigger context-window, like 32k, one can use hybrid.
+get_retriever.mode = "embedding"

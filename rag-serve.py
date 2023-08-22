@@ -25,6 +25,13 @@ async def hello(_: web.Request):
     return web.Response(text="Hello, world")
 
 
+@gin.configurable
+def get_retriever(app, mode):
+    if mode != "hybrid" and mode != "embedding" and mode != "keyword":
+        return None
+    return app[mode]
+
+
 # curl -v -d 'input=中国有多大' http://127.0.0.1:8080/query
 @routes.post("/query")
 async def query(request: web.Request):
@@ -45,7 +52,7 @@ async def query(request: web.Request):
 
     user_input = turns[-1].get("content", "")
 
-    retriever = request.app['engine']
+    retriever = get_retriever(request.app)
 
     # What is the result here?
     context = retriever.retrieve(user_input)
@@ -76,7 +83,7 @@ async def retrieve(request: web.Request):
 
     user_input = turns[-1].get("content", "")
 
-    retriever = request.app['engine']
+    retriever = get_retriever(request.app)
 
     # What is the result here?
     context = retriever.retrieve(user_input)
@@ -88,10 +95,16 @@ async def retrieve(request: web.Request):
 def init_app(embedding_index, keyword_index):
     app = web.Application()
     app.add_routes(routes)
-    app['engine'] = HybridRetriever(
-        embedding_index.as_retriever(),
-        keyword_index.as_retriever()
+    embedding_retriever = embedding_index.as_retriever()
+    keyword_retriever = keyword_index.as_retriever()
+    app['hybrid'] = HybridRetriever(
+        embedding_retriever,
+        keyword_retriever
     )
+
+    app['keyword'] = keyword_retriever
+    app['embedding'] = embedding_retriever
+
     app["llm"] = get_generator()
 
     app['compiler'] = Compiler()

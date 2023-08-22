@@ -5,6 +5,7 @@ InstructorEmbedding
 aiohttp
 llama-cpp-python
 gin-config
+flash-attn
 
 #aiodns
 #openai

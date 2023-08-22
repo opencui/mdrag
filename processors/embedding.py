@@ -1,38 +1,38 @@
 from typing import Any, List
-from InstructorEmbedding import INSTRUCTOR
-from langchain.embeddings import HuggingFaceEmbeddings
+
+import gin
 from llama_index.embeddings.base import BaseEmbedding
+from sentence_transformers import SentenceTransformer
 
 
-class InstructorEmbeddings(BaseEmbedding):
+class InstructedEmbeddings(BaseEmbedding):
     def __init__(
         self,
-        instructor_model_name: str = "hkunlp/instructor-large",
-        instruction: str = "Represent the Computer Science text for retrieval:",
+        model_name: str,
+        instruction: str,
         **kwargs: Any,
     ) -> None:
-        self._model = INSTRUCTOR(instructor_model_name)
+        self._model = SentenceTransformer(model_name)
         self._instruction = instruction
         super().__init__(**kwargs)
 
+    def expand(self, query) -> str:
+        return f"{self._instruction} {query}"
+
     def _get_query_embedding(self, query: str) -> List[float]:
-        embeddings = self._model.encode([[self._instruction, query]])
-        return embeddings[0].tolist()
+        return self._model.encode(self.expand(query), normalize_embeddings=True)
 
     async def _aget_query_embedding(self, query: str) -> List[float]:
         return self._get_query_embedding(query)
 
     def _get_text_embedding(self, text: str) -> List[float]:
-        embeddings = self._model.encode([[self._instruction, text]])
-        return embeddings[0].tolist()
+        return self._model.encode(text, normalize_embeddings=True)
 
     def _get_text_embeddings(self, texts: List[str]) -> List[List[float]]:
-        embeddings = self._model.encode([[self._instruction, text] for text in texts])
+        embeddings = self._model.encode(texts)
         return embeddings.tolist()
 
 
-def get_embedding(query: bool = True):
-    return HuggingFaceEmbeddings(
-        model_name="sentence-transformers/multi-qa-mpnet-base-dot-v1",
-        model_kwargs={'device': 'cpu'}
-    )
+@gin.configurable
+def get_embedding(model_name: str, instruction: str):
+    return InstructedEmbeddings(model_name=model_name, instruction=instruction)

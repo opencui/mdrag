@@ -123,7 +123,7 @@ if __name__ == "__main__":
 
     p = sys.argv[1]
 
-    gin.parse_config_file('config.gin')
+    gin.parse_config_file('serve.gin')
 
     if not os.path.isdir(p):
         sys.exit(1)

@@ -4,7 +4,7 @@
 import os
 import re
 import sys
-import time
+import gin
 import shutil
 import logging
 import tempfile
@@ -100,6 +100,7 @@ if __name__ == "__main__":
 
     # We assume that there output directory is the first argument, and the rest is input directory
     output = sys.argv[1]
+    gin.parse_config_file('index.gin')
 
     # init download hugging fact model
     service_context = ServiceContext.from_defaults(

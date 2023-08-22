@@ -28,7 +28,7 @@ class Response:
 
 class OpenAIGenerator:
     def __init__(self, model="gpt-3.5-turbo", temperature=0):
-        self.mmodel = model
+        self.model = model
         self.temperature = temperature
 
     @classmethod
@@ -41,7 +41,7 @@ class OpenAIGenerator:
         async with ClientSession(trust_env=True) as session:
             openai.aiosession.set(session)
             response = await openai.ChatCompletion.acreate(
-                model="gpt-3.5-turbo",
+                model=self.model,
                 messages=OpenAIGenerator.conversation(system_prompt, turns),
                 temperature=0  # Try to as deterministic as possible.
             )
@@ -79,6 +79,7 @@ class LlamaGenerator:
         return Response(output["choices"][0]["text"])
 
 
+@gin.configurable
 class HuggingFaceGenerator:
     """HuggingFace generator."""
     def __init__(
@@ -105,7 +106,11 @@ class HuggingFaceGenerator:
         model_kwargs = model_kwargs or {}
         self._model_name = model_name
         self.model = AutoModelForCausalLM.from_pretrained(
-            model_name, device_map=device_map, **model_kwargs
+            model_name,
+            device_map=device_map,
+            torch_dtype=torch.float16,
+            trust_remote_code=True,
+            **model_kwargs
         )
 
         # check context_window
@@ -172,7 +177,7 @@ class HuggingFaceGenerator:
             stopping_criteria=self._stopping_criteria,
             **self._generate_kwargs,
         )
-        completion_tokens = tokens[0][inputs["input_ids"].size(1) :]
+        completion_tokens = tokens[0][inputs["input_ids"].size(1):]
         self._total_tokens_used += len(completion_tokens) + inputs["input_ids"].size(1)
         completion = self.tokenizer.decode(completion_tokens, skip_special_tokens=True)
 

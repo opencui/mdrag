@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import os.path
 import re
 import sys
 import gin
@@ -28,7 +29,7 @@ sdr_exclude = [
     "*.csv", "*.html", "*.js", "*.css", "*.pdf", "*.json"
 ]
 
-re_github = r"https://(?P<token>[^@]*?)@?github\.com/(?P<org>.*?)/(?P<repo>[^/@]+)@?(?P<branch>\S+)?/?"
+re_github = r"https://(?P<token>.*?)github\.com/(?P<org>[^/]+)/(?P<repo>[^/\s]+)/?(?P<type>(tree|blob)/?(?P<version>[^/\s]+)/?(?P<path>.+)?)?"
 
 
 def file_reader(file_path: str):
@@ -47,6 +48,7 @@ def dir_reader(dir_path: str):
 
 
 def url_reader(url: str):
+    logging.info(f"{url} start")
     resp = requests.get(url, timeout=300)
     if "text/" in resp.headers.get('content-type', ""):
         f = tempfile.NamedTemporaryFile(suffix=".md", delete=False)
@@ -59,10 +61,25 @@ def url_reader(url: str):
 
 
 def github_reader(urlParse: re.Match):
-    url = urlParse.string
-    branch = urlParse.groups()[3]
+    urlReGroups = urlParse.groups()
+    token = urlReGroups[0]
+    org = urlReGroups[1]
+    repo = urlReGroups[2]
+    version = urlReGroups[4]  # None|tree|blob
+    branch = urlReGroups[5]  # tag_name|branch_name|commit_id
+    # version == tree, path is dir; version == blob, path is file
+    sub_path = "" if urlReGroups[6] == None else urlReGroups[6]
+
+    if version == "blob":
+        url = f'https://{token}raw.githubusercontent.com/{org}/{repo}/{branch}/{sub_path}'
+        return url_reader(url)
+
+    if version not in [None, "tree"]:
+        return []
+
+    url = f'https://{token}github.com/{org}/{repo}'
+
     if branch:
-        url = url.replace(f'@{branch}', "")
         args = ["git", "clone", "--depth", "1", "--branch", branch, url, "."]
     else:
         args = ["git", "clone", "--depth", "1", url, "."]
@@ -72,9 +89,8 @@ def github_reader(urlParse: re.Match):
     with tempfile.TemporaryDirectory() as tmpdirname:
         subprocess.run(args, check=True, timeout=300, cwd=tmpdirname)
         subprocess.run(del_not_md, shell=True, timeout=300, cwd=tmpdirname)
-        print(tmpdirname)
         logging.info(f"{args} ended")
-        docs = dir_reader(tmpdirname)
+        docs = dir_reader(os.path.join(tmpdirname, sub_path))
         return docs
 
 
@@ -90,10 +106,9 @@ map_func = {
 #     data/
 #     /data
 #     https://abc.com/xyz.md
-#     https://github.com/abc/xyz
-#     https://github.com/abc/xyz@branch_name
-#     https://github.com/abc/xyz@tag_name
-#     https://token@github.com/abc/xyz
+#     https://<token>@github.com/<org>/<repo>
+#     https://<token>@github.com/<org>/<repo>/tree/<tag_name|branch_name>/<sub_dir>
+#     https://<token>@github.com/<org>/<repo>/blob/<tag_name|branch_name|commit_id>/<sub_dir>/<file_name>.md
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         sys.exit(0)

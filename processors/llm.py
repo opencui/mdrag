@@ -14,6 +14,12 @@ def get_generator(model):
     logging.debug(f"Using {model} as generator...")
     models = model.split("/")
     if models[0] == "openai":
+        import os
+        import sys
+        apikey = os.environ["OPENAI_API_KEY"]
+        if apikey == "":
+            print("Missing OpenAI API key in environment, exiting")
+            sys.exit(0)
         return OpenAIGenerator(models[1])
     elif model.startswith(".") and model.endswith("bin"):
         return LlamaGenerator(model)

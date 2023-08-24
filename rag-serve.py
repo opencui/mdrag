@@ -129,6 +129,8 @@ if __name__ == "__main__":
         sys.exit(1)
 
     service_context = ServiceContext.from_defaults(
+        llm=None,
+        llm_predictor=None,
         embed_model=get_embedding())
 
     set_global_service_context(service_context)

@@ -67,8 +67,14 @@ async def query(request: web.Request):
     if len(prompt) == 0:
         prompt = request.app['prompt']
 
+    if type(turns) != list:
+        return web.json_response({"errMsg": f'turns type is not list'})
+
     if len(turns) == 0:
-        return web.json_response({"errMsg": f'input type is not str'})
+        feedback = req.get("feedback", None)
+        if feedback:
+            return web.json_response({"reply": ''})
+        return web.json_response({"errMsg": f'turns length cannot be empty'})
 
     if turns[0].get("role", "") != "user":
         return web.json_response({"errMsg": f'first turn is not from user'})

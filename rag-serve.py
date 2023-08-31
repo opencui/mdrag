@@ -14,7 +14,7 @@ from processors.embedding import get_embedding
 from processors.retriever import HybridRetriever
 from processors.llm import get_generator
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
 routes = web.RouteTableDef()
@@ -61,6 +61,8 @@ async def tryitnow(request: web.Request):
 @routes.post("/query")
 async def query(request: web.Request):
     req = await request.json()
+    logging.info(req)
+
     turns = req.get("turns", [])
     prompt = req.get("prompt", "")
 

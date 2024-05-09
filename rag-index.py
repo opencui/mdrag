@@ -15,9 +15,13 @@ import subprocess
 from pathlib import Path
 from urllib.parse import urlparse
 
-from llama_index import ServiceContext, StorageContext
-from llama_index import VectorStoreIndex, SimpleDirectoryReader, SimpleKeywordTableIndex
-from llama_index import set_global_service_context
+from llama_index.core import ServiceContext, StorageContext
+from llama_index.core import (
+    VectorStoreIndex,
+    SimpleDirectoryReader,
+    SimpleKeywordTableIndex,
+)
+from llama_index.core import set_global_service_context
 from processors.markdown import MarkdownReader
 from processors.embedding import get_embedding
 
@@ -25,8 +29,20 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
 sdr_exclude = [
-    "*.rst", "*.ipynb", "*.py", "*.bat", "*.txt", "*.png", "*.jpg", "*.jpeg",
-    "*.csv", "*.html", "*.js", "*.css", "*.pdf", "*.json"
+    "*.rst",
+    "*.ipynb",
+    "*.py",
+    "*.bat",
+    "*.txt",
+    "*.png",
+    "*.jpg",
+    "*.jpeg",
+    "*.csv",
+    "*.html",
+    "*.js",
+    "*.css",
+    "*.pdf",
+    "*.json",
 ]
 
 re_github = r"https://(?P<token>.*?)github\.com/(?P<org>[^/]+)/(?P<repo>[^/\s]+)/?(?P<type>(tree|blob)/?(?P<version>[^/\s]+)/?(?P<path>.+)?)?"
@@ -40,9 +56,7 @@ def dir_reader(dir_path: str):
     return SimpleDirectoryReader(
         input_dir=dir_path,
         exclude=sdr_exclude,
-        file_extractor={
-            ".md": MarkdownReader()
-        },
+        file_extractor={".md": MarkdownReader()},
         recursive=True,
     ).load_data()
 
@@ -50,7 +64,7 @@ def dir_reader(dir_path: str):
 def url_reader(url: str):
     logging.info(f"{url} start")
     resp = requests.get(url, timeout=300)
-    if "text/" in resp.headers.get('content-type', ""):
+    if "text/" in resp.headers.get("content-type", ""):
         f = tempfile.NamedTemporaryFile(suffix=".md", delete=False)
         f.write(resp.content)
         f.close()
@@ -71,20 +85,22 @@ def github_reader(urlParse: re.Match):
     sub_path = "" if urlReGroups[6] == None else urlReGroups[6]
 
     if version == "blob":
-        url = f'https://{token}raw.githubusercontent.com/{org}/{repo}/{branch}/{sub_path}'
+        url = (
+            f"https://{token}raw.githubusercontent.com/{org}/{repo}/{branch}/{sub_path}"
+        )
         return url_reader(url)
 
     if version not in [None, "tree"]:
         return []
 
-    url = f'https://{token}github.com/{org}/{repo}'
+    url = f"https://{token}github.com/{org}/{repo}"
 
     if branch:
         args = ["git", "clone", "--depth", "1", "--branch", branch, url, "."]
     else:
         args = ["git", "clone", "--depth", "1", url, "."]
 
-    del_not_md = '''find . -type f ! -name "*.md" | xargs rm -rf'''
+    del_not_md = """find . -type f ! -name "*.md" | xargs rm -rf"""
     logging.info(f"{args} start")
     with tempfile.TemporaryDirectory() as tmpdirname:
         subprocess.run(args, check=True, timeout=300, cwd=tmpdirname)
@@ -115,7 +131,7 @@ if __name__ == "__main__":
 
     # We assume that there output directory is the first argument, and the rest is input directory
     output = sys.argv[1]
-    gin.parse_config_file('index.gin')
+    gin.parse_config_file("index.gin")
 
     # init download hugging fact model
     service_context = ServiceContext.from_defaults(
@@ -153,9 +169,11 @@ if __name__ == "__main__":
 
     try:
         embedding_index = VectorStoreIndex.from_documents(
-            documents, storage_context=storage_context)
+            documents, storage_context=storage_context
+        )
         keyword_index = SimpleKeywordTableIndex(
-            documents, storage_context=storage_context)
+            documents, storage_context=storage_context
+        )
 
         embedding_index.set_index_id("embedding")
         embedding_index.storage_context.persist(persist_dir=output)

@@ -1,7 +1,7 @@
 from llama_index import QueryBundle
 from typing import Any, Dict, List, Optional, Tuple, cast
 
-from llama_index.retrievers import (
+from llama_index.core.retrievers import (
     BaseRetriever,
     VectorIndexRetriever,
     KeywordTableSimpleRetriever,

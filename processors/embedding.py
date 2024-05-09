@@ -1,11 +1,16 @@
 from typing import Any, List
+from llama_index.core.bridge.pydantic import PrivateAttr
 
 import gin
-from llama_index.embeddings.base import BaseEmbedding
+
+from llama_index.core.base.embeddings.base import BaseEmbedding
 from sentence_transformers import SentenceTransformer
 
 
 class InstructedEmbeddings(BaseEmbedding):
+    _model: SentenceTransformer = PrivateAttr()
+    _instruction: str = ""
+
     def __init__(
         self,
         model_name: str,
@@ -19,16 +24,16 @@ class InstructedEmbeddings(BaseEmbedding):
     def expand(self, query) -> str:
         return f"{self._instruction} {query}"
 
-    def _get_query_embedding(self, query: str) -> List[float]:
+    def _get_query_embedding(self, query: str):
         return self._model.encode(self.expand(query), normalize_embeddings=True)
 
-    async def _aget_query_embedding(self, query: str) -> List[float]:
+    async def _aget_query_embedding(self, query: str):
         return self._get_query_embedding(query)
 
-    def _get_text_embedding(self, text: str) -> List[float]:
+    def _get_text_embedding(self, text: str):
         return self._model.encode(text, normalize_embeddings=True)
 
-    def _get_text_embeddings(self, texts: List[str]) -> List[List[float]]:
+    def _get_text_embeddings(self, texts: List[str]):
         embeddings = self._model.encode(texts)
         return embeddings.tolist()
 

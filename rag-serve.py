@@ -4,12 +4,13 @@ import dataclasses
 import os
 import sys
 import logging
+from aiohttp.web_app import Application
 import gin
 
 from aiohttp import web
 from pybars import Compiler
-from llama_index import set_global_service_context
-from llama_index import StorageContext, ServiceContext, load_index_from_storage
+from llama_index.core import set_global_service_context
+from llama_index.core import StorageContext, ServiceContext, load_index_from_storage
 from processors.embedding import get_embedding
 from processors.retriever import HybridRetriever
 from processors.llm import get_generator
@@ -26,7 +27,7 @@ async def hello(_: web.Request):
 
 
 @gin.configurable
-def get_retriever(app, mode):
+def get_retriever(app: Application, mode: str):
     if mode != "hybrid" and mode != "embedding" and mode != "keyword":
         return None
     return app[mode]
@@ -37,23 +38,21 @@ async def tryitnow(request: web.Request):
     req = await request.json()
 
     text = req.get("text", "")
-    session_id = req.get("sessionId", "")
-    initial = req.get("initial", "")
     events = req.get("events", [])
+    initial = req.get("initial", "")
 
     if len(text) == 0:
-        return web.json_response({"errMsg": f'text value is not empty'})
+        return web.json_response({"errMsg": "text value is not empty"})
 
-    if type(initial) != bool:
-        return web.json_response({"errMsg": f'initial type is not bool'})
+    if not isinstance(initial, bool):
+        return web.json_response({"errMsg": "initial type is not bool"})
 
-    if type(events) != list:
-        return web.json_response({"errMsg": f'events type is not list'})
+    if not isinstance(events, list):
+        return web.json_response({"errMsg": "events type is not list"})
 
     for e in events:
-        if type(e) != dict:
-            return web.json_response(
-                {"errMsg": f'events[index] type is not dict'})
+        if not isinstance(e, dict):
+            return web.json_response({"errMsg": "events[index] type is not dict"})
 
     return web.json_response({})
 
@@ -67,34 +66,33 @@ async def query(request: web.Request):
     prompt = req.get("prompt", "")
 
     if len(prompt) == 0:
-        prompt = request.app['prompt']
+        prompt = request.app["prompt"]
 
-    if type(turns) != list:
-        return web.json_response({"errMsg": f'turns type is not list'})
+    if not isinstance(turns, list):
+        return web.json_response({"errMsg": "turns type is not list"})
 
     if len(turns) == 0:
         feedback = req.get("feedback", None)
         if feedback:
-            return web.json_response({"reply": ''})
-        return web.json_response({"errMsg": f'turns length cannot be empty'})
+            return web.json_response({"reply": ""})
+        return web.json_response({"errMsg": "turns length cannot be empty"})
 
     if turns[0].get("role", "") != "user":
-        return web.json_response({"errMsg": f'first turn is not from user'})
+        return web.json_response({"errMsg": "first turn is not from user"})
     if turns[-1].get("role", "") != "user":
-        return web.json_response({"errMsg": f'last turn is not from user'})
+        return web.json_response({"errMsg": "last turn is not from user"})
 
     user_input = turns[-1].get("content", "")
 
-    retriever = get_retriever(request.app)
-
+    retriever = get_retriever(request.app)  # type: ignore
     # What is the result here?
     context = retriever.retrieve(user_input)
 
-    template = request.app['compiler'].compile(prompt)
+    template = request.app["compiler"].compile(prompt)
 
     new_prompt = template({"query": user_input, "context": context})
 
-    llm = request.app['llm']
+    llm = request.app["llm"]
 
     # So that we can use different llm.
     resp = await llm.agenerate(new_prompt, turns)
@@ -108,15 +106,15 @@ async def retrieve(request: web.Request):
     turns = req.get("turns", [])
     prompt = req.get("prompt", "")
     if len(prompt) == 0:
-        prompt = request.app['prompt']
+        prompt = request.app["prompt"]
     if len(turns) == 0:
-        return web.json_response({"errMsg": f'input type is not str'})
+        return web.json_response({"errMsg": "input type is not str"})
     if turns[-1].get("role", "") != "user":
-        return web.json_response({"errMsg": f'last turn is not from user'})
+        return web.json_response({"errMsg": "last turn is not from user"})
 
     user_input = turns[-1].get("content", "")
 
-    retriever = get_retriever(request.app)
+    retriever = get_retriever(request.app)  # type: ignore
 
     # What is the result here?
     context = retriever.retrieve(user_input)
@@ -130,19 +128,20 @@ def init_app(embedding_index, keyword_index):
     app.add_routes(routes)
     embedding_retriever = embedding_index.as_retriever()
     keyword_retriever = keyword_index.as_retriever()
-    app['hybrid'] = HybridRetriever(embedding_retriever, keyword_retriever)
 
-    app['keyword'] = keyword_retriever
-    app['embedding'] = embedding_retriever
+    app["llm"] = get_generator()  # type: ignore
+    app["keyword"] = keyword_retriever
+    app["embedding"] = embedding_retriever
+    app["hybrid"] = HybridRetriever(embedding_retriever, keyword_retriever)
 
-    app["llm"] = get_generator()
-
-    app['compiler'] = Compiler()
-    app['prompt'] = "We have provided context information below. \n" \
-        "---------------------\n"\
-        "{{context}}"\
-        "\n---------------------\n"\
+    app["compiler"] = Compiler()
+    app["prompt"] = (
+        "We have provided context information below. \n"
+        "---------------------\n"
+        "{{context}}"
+        "\n---------------------\n"
         "Given this information, please answer the question: {{query}}\n"
+    )
     return app
 
 
@@ -153,20 +152,20 @@ if __name__ == "__main__":
 
     p = sys.argv[1]
 
-    gin.parse_config_file('serve.gin')
+    gin.parse_config_file("serve.gin")
 
     if not os.path.isdir(p):
         sys.exit(1)
 
-    service_context = ServiceContext.from_defaults(llm=None,
-                                                   llm_predictor=None,
-                                                   embed_model=get_embedding())
+    service_context = ServiceContext.from_defaults(
+        llm=None,
+        llm_predictor=None,
+        embed_model=get_embedding(),  # type: ignore
+    )
 
     set_global_service_context(service_context)
 
     storage_context = StorageContext.from_defaults(persist_dir=p)
-    embedding_index = load_index_from_storage(storage_context,
-                                              index_id="embedding")
-    keyword_index = load_index_from_storage(storage_context,
-                                            index_id="keyword")
+    embedding_index = load_index_from_storage(storage_context, index_id="embedding")
+    keyword_index = load_index_from_storage(storage_context, index_id="keyword")
     web.run_app(init_app(embedding_index, keyword_index))

@@ -1,5 +1,5 @@
-from llama_index import QueryBundle
-from typing import Any, Dict, List, Optional, Tuple, cast
+from llama_index.core import QueryBundle
+from typing import List
 
 from llama_index.core.retrievers import (
     BaseRetriever,
@@ -7,7 +7,7 @@ from llama_index.core.retrievers import (
     KeywordTableSimpleRetriever,
 )
 
-from llama_index.schema import NodeWithScore
+from llama_index.core.schema import NodeWithScore
 
 
 class HybridRetriever(BaseRetriever):

@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import logging
 import os
 import os.path
 import re
-import sys
-import gin
 import shutil
-import logging
-import tempfile
-import requests
 import subprocess
-
+import sys
+import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 
-from llama_index.core import ServiceContext, StorageContext
+import gin
+import requests
 from llama_index.core import (
-    VectorStoreIndex,
+    ServiceContext,
     SimpleDirectoryReader,
     SimpleKeywordTableIndex,
+    StorageContext,
+    VectorStoreIndex,
+    set_global_service_context,
 )
-from llama_index.core import set_global_service_context
-from processors.markdown import MarkdownReader
 from processors.embedding import get_embedding
+from processors.markdown import MarkdownReader
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
@@ -82,7 +82,7 @@ def github_reader(urlParse: re.Match):
     version = urlReGroups[4]  # None|tree|blob
     branch = urlReGroups[5]  # tag_name|branch_name|commit_id
     # version == tree, path is dir; version == blob, path is file
-    sub_path = "" if urlReGroups[6] == None else urlReGroups[6]
+    sub_path = "" if urlReGroups[6] is None else urlReGroups[6]
 
     if version == "blob":
         url = (
@@ -137,7 +137,7 @@ if __name__ == "__main__":
     service_context = ServiceContext.from_defaults(
         llm=None,
         llm_predictor=None,
-        embed_model=get_embedding(),
+        embed_model=get_embedding(),  # type: ignore
     )
 
     storage_context = StorageContext.from_defaults()

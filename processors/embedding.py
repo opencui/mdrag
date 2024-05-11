@@ -10,12 +10,7 @@ class InstructedEmbeddings(BaseEmbedding):
     _model: SentenceTransformer = PrivateAttr()
     _instruction: str = PrivateAttr()
 
-    def __init__(
-        self,
-        model_name: str,
-        instruction: str,
-        **kwargs: Any,
-    ) -> None:
+    def __init__(self, model_name: str, instruction: str, **kwargs: Any) -> None:
         self._model = SentenceTransformer(model_name)
         self._instruction = instruction
         super().__init__(**kwargs)

@@ -34,14 +34,14 @@ langchain==0.0.354
 langchain-community==0.0.20
 langchain-core==0.1.23
 langsmith==0.0.87
-llama-index==0.10.12
+llama-index==0.10.36
 llama-index-agent-openai==0.1.7
 llama-index-cli==0.1.12
-llama-index-core==0.10.12
+llama-index-core==0.10.36
 llama-index-embeddings-openai==0.1.9
 llama-index-indices-managed-llama-cloud==0.1.6
 llama-index-legacy==0.9.48
-llama-index-llms-openai==0.1.8
+llama-index-llms-openai==0.1.18
 llama-index-multi-modal-llms-openai==0.1.5
 llama-index-program-openai==0.1.6
 llama-index-question-gen-openai==0.1.3

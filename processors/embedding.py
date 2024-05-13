@@ -10,8 +10,10 @@ class InstructedEmbeddings(BaseEmbedding):
     _model: SentenceTransformer = PrivateAttr()
     _instruction: str = PrivateAttr()
 
-    def __init__(self, model_name: str, instruction: str, **kwargs: Any) -> None:
-        self._model = SentenceTransformer(model_name)
+    def __init__(
+        self, model_name: str, instruction: str, device: str, **kwargs: Any
+    ) -> None:
+        self._model = SentenceTransformer(model_name, device=device)
         self._instruction = instruction
         super().__init__(**kwargs)
 
@@ -33,5 +35,7 @@ class InstructedEmbeddings(BaseEmbedding):
 
 
 @gin.configurable
-def get_embedding(model_name: str, instruction: str):
-    return InstructedEmbeddings(model_name=model_name, instruction=instruction)
+def get_embedding(model_name: str, instruction: str, device: str):
+    return InstructedEmbeddings(
+        model_name=model_name, instruction=instruction, device=device
+    )

@@ -205,7 +205,7 @@ async def query(request: web.Request):
     return web.json_response(dataclasses.asdict(resp))
 
 
-@routes.post("/retrieve")
+@routes.post("/retrieve/{org}/{agent}")
 async def retrieve(request: web.Request):
     req = await request.json()
     turns = req.get("turns", [])

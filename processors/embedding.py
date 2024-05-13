@@ -20,6 +20,9 @@ class InstructedEmbeddings(BaseEmbedding):
     def expand(self, query) -> str:
         return f"{self._instruction} {query}"
 
+    def get_query_embedding(self, query: str):  # type: ignore
+        return self._model.encode(self.expand(query), normalize_embeddings=True)
+
     def _get_query_embedding(self, query: str):  # type: ignore
         return self._model.encode(self.expand(query), normalize_embeddings=True)
 

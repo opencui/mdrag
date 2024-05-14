@@ -254,8 +254,7 @@ if __name__ == "__main__":
     embedding_model = get_embedding()  # type: ignore
 
     if len(sys.argv) != 2:
-        print("Where is the index saved?")
-        sys.exit(1)
+        sys.exit(0)
 
     p = sys.argv[1]
     if not os.path.isdir(p):

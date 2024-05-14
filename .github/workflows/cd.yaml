@@ -1,0 +1,30 @@
+name: PR CD
+on:
+  push:
+    tags: [build-image-*]
+jobs:
+  build-docker-image:
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      - uses: framely/actions-uses-private-repo@v1
+        with:
+          github-token: ${{ secrets.PAT_TOKEN }}
+          repository: framely/actions-framely-init@v1
+          command: |-
+            pwd
+      - uses: ./../actions-framely-init
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG_US }}
+          github-token: ${{ secrets.PAT_TOKEN }}
+          kustomize-image-name: ni-dialogflow-mdrag
+          feishu-hook-id: ${{ secrets.FEISHU_HOOK_ID }}
+          docker-registry: ${{ vars.ACR_REGISTRY }}
+          docker-file: Dockerfile
+          docker-context: .
+          command-main: echo main
+          command-post: echo post

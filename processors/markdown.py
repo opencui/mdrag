@@ -2,8 +2,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, cast
 
-from llama_index.readers.base import BaseReader
-from llama_index.schema import Document, NodeRelationship, RelatedNodeInfo
+from llama_index.core.readers.base import BaseReader
+from llama_index.core.schema import Document, NodeRelationship, RelatedNodeInfo
 
 
 class NodeStack:
@@ -58,7 +58,7 @@ class MarkdownReader(BaseReader):
             if header_match:
                 # create and add node for the current header.
                 markdown_docs.append(
-                     Document(
+                    Document(
                         text=line.strip(),
                         metadata={
                             "file_name": filename,
@@ -69,8 +69,8 @@ class MarkdownReader(BaseReader):
                             NodeRelationship.PARENT: RelatedNodeInfo(
                                 node_id=header_node_stack.id_on_top()
                             )
-                        }
-                     )
+                        },
+                    )
                 )
 
                 # when we find the next header, save the current text accumulated.
@@ -87,7 +87,7 @@ class MarkdownReader(BaseReader):
                                 NodeRelationship.PARENT: RelatedNodeInfo(
                                     node_id=header_node_stack.id_on_top()
                                 )
-                            }
+                            },
                         )
                     )
                     current_text = ""
@@ -111,7 +111,9 @@ class MarkdownReader(BaseReader):
                 # output code block.
                 if code_match and current_code_block:
                     current_code_block += line + "\n"
-                    if len(markdown_docs) > 0 and markdown_docs[-1].metadata['header'] == '/'.join(header_stack):
+                    if len(markdown_docs) > 0 and markdown_docs[-1].metadata[
+                        "header"
+                    ] == "/".join(header_stack):
                         markdown_docs.append(
                             Document(
                                 text=current_code_block.strip(),
@@ -124,7 +126,7 @@ class MarkdownReader(BaseReader):
                                     NodeRelationship.PARENT: RelatedNodeInfo(
                                         node_id=markdown_docs[-1].id_,
                                     )
-                                }
+                                },
                             )
                         )
                     else:
@@ -152,7 +154,7 @@ class MarkdownReader(BaseReader):
                                 NodeRelationship.PARENT: RelatedNodeInfo(
                                     node_id=header_node_stack.id_on_top()
                                 )
-                            }
+                            },
                         )
                     )
                     current_text = ""
@@ -175,7 +177,7 @@ class MarkdownReader(BaseReader):
                         NodeRelationship.PARENT: RelatedNodeInfo(
                             node_id=header_node_stack.id_on_top()
                         )
-                    }
+                    },
                 )
             )
 
@@ -193,7 +195,10 @@ class MarkdownReader(BaseReader):
         content = re.sub(pattern, r"\1", content)
         return content
 
-    def parse_tups(self, filepath: Path,) -> List[Document]:
+    def parse_tups(
+        self,
+        filepath: Path,
+    ) -> List[Document]:
         """Parse file into tuples."""
 
         with open(filepath, "r", encoding="utf-8") as f:
@@ -216,3 +221,4 @@ class MarkdownReader(BaseReader):
             doc.metadata.update(extra_info or {})
 
         return documents
+

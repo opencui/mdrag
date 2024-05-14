@@ -2,11 +2,10 @@
 # -*- coding: utf-8 -*-
 from dataclasses import dataclass
 
-from aiohttp import ClientSession
-import openai
 from typing import Any, List, Optional
 import logging
 import gin
+from openai import AsyncOpenAI
 
 
 @gin.configurable
@@ -16,6 +15,7 @@ def get_generator(model):
     if models[0] == "openai":
         import os
         import sys
+
         apikey = os.environ["OPENAI_API_KEY"]
         if apikey == "":
             print("Missing OpenAI API key in environment, exiting")
@@ -44,20 +44,20 @@ class OpenAIGenerator:
         return res
 
     async def agenerate(self, system_prompt, turns) -> Response:
-        async with ClientSession(trust_env=True) as session:
-            openai.aiosession.set(session)
-            response = await openai.ChatCompletion.acreate(
-                model=self.model,
-                messages=OpenAIGenerator.conversation(system_prompt, turns),
-                temperature=0  # Try to as deterministic as possible.
-            )
-        return Response(response.choices[0].message["content"])
+        client = AsyncOpenAI()
+        response = await client.chat.completions.create(
+            temperature=0,  # Try to as deterministic as possible.
+            model=self.model,
+            messages=OpenAIGenerator.conversation(system_prompt, turns),
+        )
+
+        return Response(response.choices[0].message.content)
 
 
 def llama2_prompt(system_prompt, turns):
     res = f"""<s>[INST] <<SYS>>{system_prompt}<</SYS>>\n"""
     res += f"""{turns[0]["content"]}  [/INST] """
-    num_turns = int(len(turns)/2)
+    num_turns = int(len(turns) / 2)
     for i in range(num_turns):
         res += f"""{turns[2*i + 1]["content"]} </s><s>[INST] {turns[2*i + 2]["content"]} [/INST]"""
     return res
@@ -66,6 +66,7 @@ def llama2_prompt(system_prompt, turns):
 class LlamaGenerator:
     def __init__(self, model_path, n_ctx=4096):
         from llama_cpp import Llama
+
         self.llm = Llama(model_path=model_path, n_ctx=n_ctx)
         self.max_tokens = 512
         self.temperature = 0
@@ -80,7 +81,7 @@ class LlamaGenerator:
             max_tokens=self.max_tokens,
             echo=self.echo,
             stop=self.stop,
-            temperature=self.temperature
+            temperature=self.temperature,
         )
         return Response(output["choices"][0]["text"])
 
@@ -88,17 +89,18 @@ class LlamaGenerator:
 @gin.configurable
 class HuggingFaceGenerator:
     """HuggingFace generator."""
+
     def __init__(
         self,
         model_name: str,
-        context_window: int = 32*1024,
+        context_window: int = 32 * 1024,
         max_new_tokens: int = 256,
         device_map: str = "auto",
         stopping_ids: Optional[List[int]] = None,
         tokenizer_kwargs: Optional[dict] = None,
         tokenizer_outputs_to_remove: Optional[list] = None,
         model_kwargs: Optional[dict] = None,
-        generate_kwargs: Optional[dict] = None
+        generate_kwargs: Optional[dict] = None,
     ) -> None:
         """Initialize params."""
         import torch
@@ -116,7 +118,7 @@ class HuggingFaceGenerator:
             device_map=device_map,
             torch_dtype=torch.float16,
             trust_remote_code=True,
-            **model_kwargs
+            **model_kwargs,
         )
 
         # check context_window
@@ -136,9 +138,7 @@ class HuggingFaceGenerator:
         if "max_length" not in tokenizer_kwargs:
             tokenizer_kwargs["max_length"] = context_window
 
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            model_name, **tokenizer_kwargs
-        )
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, **tokenizer_kwargs)
 
         self._context_window = context_window
         self._max_new_tokens = max_new_tokens
@@ -183,7 +183,7 @@ class HuggingFaceGenerator:
             stopping_criteria=self._stopping_criteria,
             **self._generate_kwargs,
         )
-        completion_tokens = tokens[0][inputs["input_ids"].size(1):]
+        completion_tokens = tokens[0][inputs["input_ids"].size(1) :]
         self._total_tokens_used += len(completion_tokens) + inputs["input_ids"].size(1)
         completion = self.tokenizer.decode(completion_tokens, skip_special_tokens=True)
 

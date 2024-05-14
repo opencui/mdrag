@@ -1,6 +1,7 @@
 # Configuration for embedding
 # Trade off based on: https://huggingface.co/spaces/mteb/leaderboard
 # Use instructed model for better performance.
+get_embedding.device = "cpu"
 get_embedding.model_name = "BAAI/bge-small-en"
 get_embedding.instruction = "Represent this sentence for searching relevant passages:"
 

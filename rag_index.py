@@ -1,32 +1,48 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import logging
 import os
 import os.path
 import re
-import sys
-import gin
 import shutil
-import logging
-import tempfile
-import requests
 import subprocess
-
+import sys
+import tempfile
+from typing import Any
 from pathlib import Path
 from urllib.parse import urlparse
 
-from llama_index import ServiceContext, StorageContext
-from llama_index import VectorStoreIndex, SimpleDirectoryReader, SimpleKeywordTableIndex
-from llama_index import set_global_service_context
-from processors.markdown import MarkdownReader
-from processors.embedding import get_embedding
+import gin
+import requests
+from llama_index.core import (
+    ServiceContext,
+    SimpleDirectoryReader,
+    SimpleKeywordTableIndex,
+    StorageContext,
+    VectorStoreIndex,
+    set_global_service_context,
+)
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
+from processors.embedding import get_embedding
+from processors.markdown import MarkdownReader
+
 
 sdr_exclude = [
-    "*.rst", "*.ipynb", "*.py", "*.bat", "*.txt", "*.png", "*.jpg", "*.jpeg",
-    "*.csv", "*.html", "*.js", "*.css", "*.pdf", "*.json"
+    "*.rst",
+    "*.ipynb",
+    "*.py",
+    "*.bat",
+    "*.txt",
+    "*.png",
+    "*.jpg",
+    "*.jpeg",
+    "*.csv",
+    "*.html",
+    "*.js",
+    "*.css",
+    "*.pdf",
+    "*.json",
 ]
 
 re_github = r"https://(?P<token>.*?)github\.com/(?P<org>[^/]+)/(?P<repo>[^/\s]+)/?(?P<type>(tree|blob)/?(?P<version>[^/\s]+)/?(?P<path>.+)?)?"
@@ -40,9 +56,7 @@ def dir_reader(dir_path: str):
     return SimpleDirectoryReader(
         input_dir=dir_path,
         exclude=sdr_exclude,
-        file_extractor={
-            ".md": MarkdownReader()
-        },
+        file_extractor={".md": MarkdownReader()},
         recursive=True,
     ).load_data()
 
@@ -50,7 +64,7 @@ def dir_reader(dir_path: str):
 def url_reader(url: str):
     logging.info(f"{url} start")
     resp = requests.get(url, timeout=300)
-    if "text/" in resp.headers.get('content-type', ""):
+    if "text/" in resp.headers.get("content-type", ""):
         f = tempfile.NamedTemporaryFile(suffix=".md", delete=False)
         f.write(resp.content)
         f.close()
@@ -68,23 +82,25 @@ def github_reader(urlParse: re.Match):
     version = urlReGroups[4]  # None|tree|blob
     branch = urlReGroups[5]  # tag_name|branch_name|commit_id
     # version == tree, path is dir; version == blob, path is file
-    sub_path = "" if urlReGroups[6] == None else urlReGroups[6]
+    sub_path = "" if urlReGroups[6] is None else urlReGroups[6]
 
     if version == "blob":
-        url = f'https://{token}raw.githubusercontent.com/{org}/{repo}/{branch}/{sub_path}'
+        url = (
+            f"https://{token}raw.githubusercontent.com/{org}/{repo}/{branch}/{sub_path}"
+        )
         return url_reader(url)
 
     if version not in [None, "tree"]:
         return []
 
-    url = f'https://{token}github.com/{org}/{repo}'
+    url = f"https://{token}github.com/{org}/{repo}"
 
     if branch:
         args = ["git", "clone", "--depth", "1", "--branch", branch, url, "."]
     else:
         args = ["git", "clone", "--depth", "1", url, "."]
 
-    del_not_md = '''find . -type f ! -name "*.md" | xargs rm -rf'''
+    del_not_md = """find . -type f ! -name "*.md" | xargs rm -rf"""
     logging.info(f"{args} start")
     with tempfile.TemporaryDirectory() as tmpdirname:
         subprocess.run(args, check=True, timeout=300, cwd=tmpdirname)
@@ -101,37 +117,20 @@ map_func = {
     "url": url_reader,
 }
 
-# python rag-index index_persist_path collection_path...
-# collection_path
-#     data/
-#     /data
-#     https://abc.com/xyz.md
-#     https://<token>@github.com/<org>/<repo>
-#     https://<token>@github.com/<org>/<repo>/tree/<tag_name|branch_name>/<sub_dir>
-#     https://<token>@github.com/<org>/<repo>/blob/<tag_name|branch_name|commit_id>/<sub_dir>/<file_name>.md
-if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        sys.exit(0)
 
-    # We assume that there output directory is the first argument, and the rest is input directory
-    output = sys.argv[1]
-    gin.parse_config_file('index.gin')
+def build_index(embed_model: Any, output: str, *args: str):
+    gin.parse_config_file("index.gin")
 
-    # init download hugging fact model
     service_context = ServiceContext.from_defaults(
-        llm=None,
-        llm_predictor=None,
-        embed_model=get_embedding(),
+        llm=None, llm_predictor=None, embed_model=embed_model
     )
 
     storage_context = StorageContext.from_defaults()
-
     set_global_service_context(service_context)
 
     documents = []
-    for file_path in sys.argv[2:]:
+    for file_path in args:
         if os.path.isfile(file_path) and file_path.endswith(".md"):
-            print(map_func["file"])
             documents.extend(map_func["file"](file_path))
         elif os.path.isdir(file_path):
             documents.extend(map_func["dir"](file_path))
@@ -146,16 +145,17 @@ if __name__ == "__main__":
                 documents.extend(map_func["url"](file_path))
                 continue
 
-    # exclude these things from considerations.
     for doc in documents:
         doc.excluded_llm_metadata_keys = ["file_name", "content_type"]
         doc.excluded_embed_metadata_keys = ["file_name", "content_type"]
 
     try:
         embedding_index = VectorStoreIndex.from_documents(
-            documents, storage_context=storage_context)
+            documents, storage_context=storage_context
+        )
         keyword_index = SimpleKeywordTableIndex(
-            documents, storage_context=storage_context)
+            documents, storage_context=storage_context
+        )
 
         embedding_index.set_index_id("embedding")
         embedding_index.storage_context.persist(persist_dir=output)
@@ -164,3 +164,24 @@ if __name__ == "__main__":
     except Exception as e:
         print(str(e))
         shutil.rmtree(output, ignore_errors=True)
+
+
+# python rag-index index_persist_path collection_path...
+# collection_path
+#     data/
+#     /data
+#     https://abc.com/xyz.md
+#     https://<token>@github.com/<org>/<repo>
+#     https://<token>@github.com/<org>/<repo>/tree/<tag_name|branch_name>/<sub_dir>
+#     https://<token>@github.com/<org>/<repo>/blob/<tag_name|branch_name|commit_id>/<sub_dir>/<file_name>.md
+if __name__ == "__main__":
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+    logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
+
+    gin.parse_config_file("index.gin")
+
+    if len(sys.argv) < 3:
+        sys.exit(0)
+
+    model = get_embedding()  # type: ignore
+    build_index(model, sys.argv[1], *sys.argv[2:])

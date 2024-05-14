@@ -8,11 +8,11 @@ from urllib.parse import urljoin
 from aiohttp import web
 from typing import Any, List
 from langchain.embeddings import HuggingFaceEmbeddings
-from llama_index.embeddings.base import BaseEmbedding
+from llama_index.core.base.embeddings.base import BaseEmbedding
 
 langchain_embedding = HuggingFaceEmbeddings(
     model_name="sentence-transformers/multi-qa-mpnet-base-dot-v1",
-    model_kwargs={'device': 'cpu'},
+    model_kwargs={"device": "cpu"},
 )
 
 routes = web.RouteTableDef()
@@ -29,7 +29,7 @@ async def encode(req: web.Request):
     _body = await req.read()
     try:
         body = json.loads(_body)
-        if type(body) != list:
+        if isinstance(body, list):
             return web.Response(status=500, text="post body must be [] object")
     except Exception as e:
         return web.Response(status=500, text=str(e))
@@ -39,7 +39,6 @@ async def encode(req: web.Request):
 
 
 class RemoteEmbeddings(BaseEmbedding):
-
     def __init__(self, embedding_svc: str = "", **kwargs: Any) -> None:
         if embedding_svc == "":
             raise
@@ -48,7 +47,7 @@ class RemoteEmbeddings(BaseEmbedding):
         super().__init__(**kwargs)
 
     def http_post(self, body: List[str]) -> Any:
-        url = f'${self.embedding_svc}encode'
+        url = f"${self.embedding_svc}encode"
         data = requests.post(url, json=json.dumps(body)).json()
         return data
 

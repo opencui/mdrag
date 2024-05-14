@@ -250,18 +250,17 @@ def init_app(data_path, embedding_model):
 
 
 if __name__ == "__main__":
+    gin.parse_config_file("serve.gin")
+    embedding_model = get_embedding()  # type: ignore
+
     if len(sys.argv) != 2:
         print("Where is the index saved?")
         sys.exit(1)
 
     p = sys.argv[1]
-
-    gin.parse_config_file("serve.gin")
-
     if not os.path.isdir(p):
         sys.exit(1)
 
-    embedding_model = get_embedding()  # type: ignore
     service_context = ServiceContext.from_defaults(
         llm=None,
         llm_predictor=None,

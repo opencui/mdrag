@@ -3,6 +3,7 @@
 import dataclasses
 import logging
 import os
+import os.path
 import tarfile
 import io
 import shutil
@@ -111,9 +112,16 @@ async def build_index_handler(request: web.Request):
                         t.extractall(n)
                     args.append(n)
                 case "file":
+                    _p = os.path.abspath(os.path.join(tmpdirname, o.filename))
+                    if not _p.startswith(tmpdirname):
+                        return web.json_response(
+                            {"errMsg": f"file name error {o.filename}"}
+                        )
+
+                    os.makedirs(os.path.dirname(_p), exist_ok=True)
                     with tempfile.NamedTemporaryFile(
-                        dir=tmpdirname,
-                        suffix=f"_{o.filename}",  # type: ignore
+                        dir=os.path.dirname(_p),
+                        suffix=f"_{os.path.basename(_p)}",  # type: ignore
                         delete=False,
                     ) as f:
                         f.write(await o.read())  # type: ignore

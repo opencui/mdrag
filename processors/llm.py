@@ -9,18 +9,15 @@ from openai import AsyncOpenAI
 
 
 @gin.configurable
-def get_generator(model):
+def get_generator(model, openai_base_url=None, openai_api_key=None):
     logging.debug(f"Using {model} as generator...")
     models = model.split("/")
     if models[0] == "openai":
-        import os
-        import sys
-
-        apikey = os.environ["OPENAI_API_KEY"]
-        if apikey == "":
-            print("Missing OpenAI API key in environment, exiting")
-            sys.exit(0)
-        return OpenAIGenerator(models[1])
+        return OpenAIGenerator(
+            model=models[1],
+            url=openai_base_url,
+            api_key=openai_api_key,
+        )
     elif model.startswith(".") and model.endswith("bin"):
         return LlamaGenerator(model)
     else:
@@ -33,7 +30,9 @@ class Response:
 
 
 class OpenAIGenerator:
-    def __init__(self, model="gpt-3.5-turbo", temperature=0):
+    def __init__(self, model="gpt-3.5-turbo", temperature=0, url=None, api_key=None):
+        self.url = url
+        self.api_key = api_key
         self.model = model
         self.temperature = temperature
 
@@ -44,7 +43,7 @@ class OpenAIGenerator:
         return res
 
     async def agenerate(self, system_prompt, turns) -> Response:
-        client = AsyncOpenAI()
+        client = AsyncOpenAI(api_key=self.api_key, base_url=self.url)
         response = await client.chat.completions.create(
             temperature=0,  # Try to as deterministic as possible.
             model=self.model,

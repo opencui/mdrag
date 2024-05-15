@@ -87,6 +87,14 @@ def get_retriever(req: web.Request, mode: str):
             return None
 
 
+@routes.get("/index/{org}/{agent}")
+async def check(request: web.Request):
+    agent_path = get_agent_path(request)
+    if not os.path.exists(agent_path):
+        return web.json_response({"errMsg": "index not found"}, status=500)
+    return web.json_response({})
+
+
 @routes.post("/index/{org}/{agent}")
 async def build_index_handler(request: web.Request):
     agent_path = get_agent_path(request)
@@ -163,10 +171,7 @@ async def tryitnow(request: web.Request):
 
 @routes.post("/query/{org}/{agent}")
 async def query(request: web.Request):
-    data_path = request.app["data_path"]
-    org_name = request.match_info["org"]
-    agent_name = request.match_info["agent"]
-    agent_path = os.path.join(data_path, org_name, agent_name)
+    agent_path = get_agent_path(request)
 
     if not os.path.exists(agent_path):
         return web.json_response({"errMsg": "index not found"})

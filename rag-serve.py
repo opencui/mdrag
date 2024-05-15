@@ -205,7 +205,20 @@ async def query(request: web.Request):
 
     new_prompt = template({"query": user_input, "context": context})
 
-    llm = request.app["llm"]
+    knowledge_key = request.headers.get("Knowledge-Key")
+    knowledge_url = request.headers.get("Knowledge-URL")
+    knowledge_model = request.headers.get("Knowledge-Model")
+
+    match knowledge_model:
+        case "openai":
+            llm = get_generator(  # type: ignore
+                openai_api_key=knowledge_key,
+                openai_base_url=knowledge_url,
+            )
+        case _:
+            return web.json_response(
+                {"errMsg": f"knowledge model error: {knowledge_model}"}
+            )
 
     # So that we can use different llm.
     resp = await llm.agenerate(new_prompt, turns)
@@ -243,7 +256,6 @@ def init_app(data_path, embedding_model):
     app["data_path"] = data_path
     app["lru_cache"] = LRU(512)
 
-    app["llm"] = get_generator()  # type: ignore
     app["embedding_model"] = embedding_model
 
     app["compiler"] = Compiler()

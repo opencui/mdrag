@@ -9,6 +9,7 @@ import io
 import shutil
 import sys
 import tempfile
+import pickle
 
 import gin
 from lru import LRU
@@ -139,6 +140,14 @@ async def build_index_handler(request: web.Request):
 
         print(args)
         embedding_model = request.app["embedding_model"]
+
+        headers = {}
+        for k in request.headers.items():
+            if len(k) >= 2:
+                headers[k[0]] = k[1]
+        with open(os.path.join(agent_path, "headers.pickle"), "wb") as f:
+            pickle.dump(headers, f)
+
         build_index(embedding_model, agent_path, *args)
         lru_cache[agent_path] = None
 
@@ -210,9 +219,12 @@ async def query(request: web.Request):
 
     new_prompt = template({"query": user_input, "context": context})
 
-    knowledge_key = request.headers.get("Knowledge-Key")
-    knowledge_url = request.headers.get("Knowledge-URL")
-    knowledge_model = request.headers.get("Knowledge-Model")
+    with open(os.path.join(agent_path, "headers.pickle"), "rb") as f:
+        headers = pickle.load(f)
+
+    knowledge_key = headers.get("Knowledge-Key")
+    knowledge_url = headers.get("Knowledge-URL")
+    knowledge_model = headers.get("Knowledge-Model")
 
     match knowledge_model:
         case "openai":

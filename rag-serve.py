@@ -10,6 +10,7 @@ import shutil
 import sys
 import tempfile
 import pickle
+import base64
 
 import gin
 from lru import LRU
@@ -22,6 +23,7 @@ from llama_index.core import (
     set_global_service_context,
 )
 from pybars import Compiler
+from torch import mode
 
 from rag_index import build_index
 from processors.embedding import get_embedding
@@ -182,6 +184,26 @@ async def tryitnow(request: web.Request):
 async def query(request: web.Request):
     agent_path = get_agent_path(request)
 
+    with open(os.path.join(agent_path, "headers.pickle"), "rb") as f:
+        headers = pickle.load(f)
+
+    knowledge_key = headers.get("Knowledge-Key")
+    knowledge_url = headers.get("Knowledge-URL")
+    knowledge_model = headers.get("Knowledge-Model")
+    knowledge_model_name = headers.get("Knowledge-Model-Name")
+    knowledge_mode_prompt = headers.get("Knowledge-Model-Prompt")
+
+    if knowledge_model_name is None:
+        return web.json_response({"errMsg": "model name found"})
+
+    knowledge_model_name = f"{knowledge_model}/{knowledge_model_name}"
+
+    try:
+        if knowledge_mode_prompt is not None:
+            knowledge_mode_prompt = base64.b64decode(knowledge_mode_prompt).decode()
+    except Exception as e:
+        logging.error(e)
+
     if not os.path.exists(agent_path):
         return web.json_response({"errMsg": "index not found"})
 
@@ -193,6 +215,9 @@ async def query(request: web.Request):
 
     if len(prompt) == 0:
         prompt = request.app["prompt"]
+
+    if knowledge_mode_prompt is not None:
+        prompt = knowledge_mode_prompt
 
     if not isinstance(turns, list):
         return web.json_response({"errMsg": "turns type is not list"})
@@ -219,16 +244,10 @@ async def query(request: web.Request):
 
     new_prompt = template({"query": user_input, "context": context})
 
-    with open(os.path.join(agent_path, "headers.pickle"), "rb") as f:
-        headers = pickle.load(f)
-
-    knowledge_key = headers.get("Knowledge-Key")
-    knowledge_url = headers.get("Knowledge-URL")
-    knowledge_model = headers.get("Knowledge-Model")
-
     match knowledge_model:
         case "openai":
             llm = get_generator(  # type: ignore
+                model=knowledge_model_name,
                 openai_api_key=knowledge_key,
                 openai_base_url=knowledge_url,
             )

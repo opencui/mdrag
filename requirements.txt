@@ -72,6 +72,7 @@ pyarrow==16.0.0
 pyarrow-hotfix==0.6
 pybars3==0.9.7
 pydantic==1.10.15
+pydub
 PyMeta3==0.5.1
 pypdf==4.2.0
 python-dateutil==2.9.0.post0
@@ -103,5 +104,6 @@ typing_extensions==4.11.0
 tzdata==2024.1
 urllib3==2.2.1
 wrapt==1.16.0
+git+https://github.com/openai/whisper.git
 xxhash==3.4.1
 yarl

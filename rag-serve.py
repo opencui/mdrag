@@ -189,14 +189,17 @@ async def query(request: web.Request):
 
     knowledge_key = headers.get("Knowledge-Key")
     knowledge_url = headers.get("Knowledge-URL")
-    knowledge_model = headers.get("Knowledge-Model")
+    knowledge_model = headers.get("Knowledge-Model").lower()
     knowledge_model_name = headers.get("Knowledge-Model-Name")
     knowledge_mode_prompt = headers.get("Knowledge-Model-Prompt")
 
     logging.info("headers")
     logging.info(headers)
 
+    if knowledge_model == "": knowledge_model = "openai"
+
     if knowledge_model_name is None:
+        logging.info("could not find the model name")
         return web.json_response({"errMsg": "model name found"})
 
     knowledge_model_name = f"{knowledge_model}/{knowledge_model_name}"

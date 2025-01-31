@@ -11,6 +11,7 @@ import sys
 import tempfile
 import pickle
 import base64
+import time
 
 import gin
 from lru import LRU
@@ -182,6 +183,7 @@ async def tryitnow(request: web.Request):
 
 @routes.post("/query/{org}/{agent}")
 async def query(request: web.Request):
+    start_time = time.time()
     agent_path = get_agent_path(request)
 
     with open(os.path.join(agent_path, "headers.pickle"), "rb") as f:
@@ -271,6 +273,9 @@ async def query(request: web.Request):
     resp = await llm.agenerate(new_prompt, turns)
     logging.info("resp")
     logging.info(resp)
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    logging.info(f"Elapsed time: {elapsed_time}")
     return web.json_response(dataclasses.asdict(resp))
 
 

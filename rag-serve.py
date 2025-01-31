@@ -252,7 +252,9 @@ async def query(request: web.Request):
     new_prompt = template({"query": user_input, "context": context})
     logging.info("new_prompt")
     logging.info(new_prompt)
-
+    logging.info(f"knowledge_model:{knowledge_model}")
+    logging.info(f"model_name: {knowledge_model_name}")
+    logging.info(f"llm_url: {knowledge_url}")
     match knowledge_model:
         case "openai":
             llm = get_generator(  # type: ignore

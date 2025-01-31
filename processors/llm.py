@@ -31,6 +31,7 @@ class Response:
 
 class OpenAIGenerator:
     def __init__(self, model="gpt-3.5-turbo", temperature=0, url=None, api_key=None):
+        logging.info(f"OpenAIGenerator: {model}:{url}")
         self.url = url
         self.api_key = api_key
         self.model = model

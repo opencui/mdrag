@@ -5,4 +5,4 @@ RUN  ln -s /usr/bin/python3 /usr/bin/python
 
 WORKDIR /data/
 COPY . .
-RUN  python3 -m pip install -U pip && python3 -m pip install --no-cache-dir -r requirements.txt && python3 rag-serve.py && sed -i 's/cpu/cuda/g' serve.gin
+RUN  python3 -m pip install -U pip && python3 -m pip install --no-cache-dir -r requirements.txt && python3 rag-serve.py # && sed -i 's/cpu/cuda/g' serve.gin

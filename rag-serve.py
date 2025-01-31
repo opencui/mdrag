@@ -243,6 +243,7 @@ async def query(request: web.Request):
     template = request.app["compiler"].compile(prompt)
 
     new_prompt = template({"query": user_input, "context": context})
+    logging.info(new_prompt)
 
     match knowledge_model:
         case "openai":
@@ -258,7 +259,7 @@ async def query(request: web.Request):
 
     # So that we can use different llm.
     resp = await llm.agenerate(new_prompt, turns)
-
+    logging.info(resp)
     return web.json_response(dataclasses.asdict(resp))
 
 

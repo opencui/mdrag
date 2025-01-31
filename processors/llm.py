@@ -10,7 +10,7 @@ from openai import AsyncOpenAI
 
 @gin.configurable
 def get_generator(model, openai_base_url=None, openai_api_key=None):
-    logging.debug(f"Using {model} as generator...")
+    logging.info(f"Using {model}:{openai_base_url} as generator...")
     models = model.split("/")
     if models[0] == "openai":
         return OpenAIGenerator(

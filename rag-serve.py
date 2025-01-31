@@ -188,7 +188,7 @@ async def query(request: web.Request):
         headers = pickle.load(f)
 
     knowledge_key = headers.get("Knowledge-Key")
-    knowledge_url = headers.get("Knowledge-URL")
+    knowledge_url = headers.get("Knowledge-Url")
     knowledge_model = headers.get("Knowledge-Model").lower()
     knowledge_model_name = headers.get("Knowledge-Model-Name")
     knowledge_mode_prompt = headers.get("Knowledge-Model-Prompt")

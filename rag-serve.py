@@ -193,6 +193,9 @@ async def query(request: web.Request):
     knowledge_model_name = headers.get("Knowledge-Model-Name")
     knowledge_mode_prompt = headers.get("Knowledge-Model-Prompt")
 
+    logging.info("headers")
+    logging.info(headers)
+
     if knowledge_model_name is None:
         return web.json_response({"errMsg": "model name found"})
 
@@ -208,6 +211,7 @@ async def query(request: web.Request):
         return web.json_response({"errMsg": "index not found"})
 
     req = await request.json()
+    logging.info("request")
     logging.info(req)
 
     turns = req.get("turns", [])
@@ -220,18 +224,18 @@ async def query(request: web.Request):
         prompt = knowledge_mode_prompt
 
     if not isinstance(turns, list):
+        logging.error("turns is not a list")
         return web.json_response({"errMsg": "turns type is not list"})
 
     if len(turns) == 0:
+        logging.error("empty turns")
         feedback = req.get("feedback", None)
         if feedback:
             return web.json_response({"reply": ""})
         return web.json_response({"errMsg": "turns length cannot be empty"})
 
-    if turns[0].get("role", "") != "user":
-        return web.json_response({"errMsg": "first turn is not from user"})
-
     if turns[-1].get("role", "") != "user":
+        logging.info("last turn is not from user")
         return web.json_response({"errMsg": "last turn is not from user"})
 
     user_input = turns[-1].get("content", "")

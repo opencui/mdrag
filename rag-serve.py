@@ -148,6 +148,7 @@ async def build_index_handler(request: web.Request):
         for k in request.headers.items():
             if len(k) >= 2:
                 headers[k[0]] = k[1]
+        print(">> ", headers)
         with open(os.path.join(agent_path, "headers.pickle"), "wb") as f:
             pickle.dump(headers, f)
 
@@ -190,7 +191,7 @@ async def query(request: web.Request):
         headers = pickle.load(f)
 
     knowledge_key = headers.get("Knowledge-Key")
-    knowledge_url = headers.get("Knowledge-Url")
+    knowledge_url = headers.get("Knowledge-URL")
     knowledge_model = headers.get("Knowledge-Model").lower()
     knowledge_model_name = headers.get("Knowledge-Model-Name")
     knowledge_mode_prompt = headers.get("Knowledge-Model-Prompt")

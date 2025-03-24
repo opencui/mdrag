@@ -8,6 +8,6 @@ echo -n "云南沃森生物技术股份有限公司成立于 2001 年,经过二�
 nohup python rag-serve.py tmp 2>&1 &
 sleep 20
 
-curl -v -H 'Knowledge-Model: openai' -H 'Knowledge-Model-Name: deepseek-chat' -H "Knowledge-URL: https://api.deepseek.com" -F 'file=@tmp/doc.md' 127.0.0.1:8080/index/org/agent
+curl -v -H 'Knowledge-Model: openai' -H 'Knowledge-Model-Name: deepseek-chat' -H "Knowledge-Url: https://api.deepseek.com" -F 'file=@tmp/doc.md' 127.0.0.1:8080/index/org/agent
 curl -v -d '{"turns":[{"role": "user", "content" : "沃森生物?"}]}' 127.0.0.1:8080/query/org/agent | tee /dev/stderr | jq .reply | grep "云南沃森生物技术股份有限公司" || exit 1
 sleep 1

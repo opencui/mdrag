@@ -10,7 +10,6 @@ import shutil
 import sys
 import tempfile
 import pickle
-import base64
 import time
 
 import gin
@@ -24,7 +23,6 @@ from llama_index.core import (
     set_global_service_context,
 )
 from pybars import Compiler
-from torch import mode
 
 from rag_index import build_index
 from processors.embedding import get_embedding
@@ -186,19 +184,24 @@ async def query(request: web.Request):
     start_time = time.time()
     agent_path = get_agent_path(request)
 
+    req = await request.json()
+    logging.info("request")
+    logging.info(req)
+
     with open(os.path.join(agent_path, "headers.pickle"), "rb") as f:
-        headers = pickle.load(f)
+        headers: dict = pickle.load(f)
 
-    knowledge_key = headers.get("Knowledge-Key")
-    knowledge_url = headers.get("Knowledge-Url")
-    knowledge_model = headers.get("Knowledge-Model").lower()
-    knowledge_model_name = headers.get("Knowledge-Model-Name")
-    knowledge_mode_prompt = headers.get("Knowledge-Model-Prompt")
+    knowledge_key = req.get("Knowledge-Key") or headers.get("Knowledge-Key")
+    knowledge_url = req.get("Knowledge-Url") or headers.get("Knowledge-Url")
+    knowledge_model = (
+        req.get("Knowledge-Model") or headers.get("Knowledge-Model", "")
+    ).lower()
+    knowledge_model_name = req.get("Knowledge-Model-Name") or headers.get(
+        "Knowledge-Model-Name"
+    )
 
-    logging.info("headers")
-    logging.info(headers)
-
-    if knowledge_model == "": knowledge_model = "openai"
+    if knowledge_model == "":
+        knowledge_model = "openai"
 
     if knowledge_model_name is None:
         logging.info("could not find the model name")
@@ -206,27 +209,14 @@ async def query(request: web.Request):
 
     knowledge_model_name = f"{knowledge_model}/{knowledge_model_name}"
 
-    try:
-        if knowledge_mode_prompt is not None:
-            knowledge_mode_prompt = base64.b64decode(knowledge_mode_prompt).decode()
-    except Exception as e:
-        logging.error(e)
-
     if not os.path.exists(agent_path):
         return web.json_response({"errMsg": "index not found"})
-
-    req = await request.json()
-    logging.info("request")
-    logging.info(req)
 
     turns = req.get("turns", [])
     prompt = req.get("prompt", "")
 
     if len(prompt) == 0:
         prompt = request.app["prompt"]
-
-    if knowledge_mode_prompt is not None:
-        prompt = knowledge_mode_prompt
 
     if not isinstance(turns, list):
         logging.error("turns is not a list")

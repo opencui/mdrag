@@ -22,7 +22,7 @@ from llama_index.core import (
     load_index_from_storage,
     set_global_service_context,
 )
-from pybars import Compiler
+
 from jinja2 import Environment
 
 from rag_index import build_index
@@ -50,8 +50,11 @@ def get_agent_path(req: web.Request) -> str:
 
 
 @gin.configurable
-def get_retriever(req: web.Request, mode: str):
-    agent_path = get_agent_path(req)
+def get_retriever(req: web.Request, agent_name: str, mode: str):
+    data_path = req.app["data_path"]
+    org_name = req.match_info["org"]
+    path = os.path.join(data_path, org_name, agent_name)
+    agent_path = path
     lru_cache = req.app["lru_cache"]
 
     if agent_path in lru_cache and lru_cache[agent_path] is not None:
@@ -156,6 +159,44 @@ async def build_index_handler(request: web.Request):
     return web.json_response({})
 
 
+# This is used to constrain the retrieval.
+class Collection(BaseModel):
+    agent_name: str
+    tags: list[str] = []
+
+
+@routes.post("/retrieve/{org}/{agent}")
+async def retrieve(request: web.Request):
+    req = await request.json()
+    agent_name = req.match_info["agent"]
+
+    # What is the result here?  python list.
+    context = retrieve_from_collections(req, [Collection(agent_name=agent_name)])
+
+    resp = {"reply": context}
+    return web.json_response(resp)
+
+
+def retrieve_from_collections(request: web.Request, collections: list[Collection]):
+    turns = req.get("turns", [])
+    if len(turns) == 0:
+        return web.json_response({"errMsg": "input type is not str"})
+
+    if turns[-1].get("role", "") != "user":
+        return web.json_response({"errMsg": "last turn is not from user"})
+
+    user_input = turns[-1].get("content", "")
+
+    contexts = []
+    for collection in collections:
+        retriever = get_retriever(request, collection.agent_name)  # type: ignore
+        # What is the result here? We will need to use collection.tags later, in index/retrieval.
+        context = retriever.retrieve(user_input)
+        contexts.extend(context)
+
+    return contexts
+
+
 @routes.post("/v1/tryitnow/")
 async def tryitnow(request: web.Request):
     req = await request.json()
@@ -182,6 +223,19 @@ async def tryitnow(request: web.Request):
 
 @routes.post("/query/{org}/{agent}")
 async def query(request: web.Request):
+    agent_name = req.match_info["agent"]
+    result = await generate_for_collections(request, [Collection(agent_name=agent_name)])
+    return result
+
+
+@routes.post("/generate/{org}")
+async def generate(request: web.Request):
+    collections = req.get("collections", [])
+    result = await generate_for_collections(request, collections)
+    return result
+
+
+async def generate_for_collections(request: web.Request, collections: list[Collection]):
     start_time = time.time()
     agent_path = get_agent_path(request)
 
@@ -214,10 +268,6 @@ async def query(request: web.Request):
         return web.json_response({"errMsg": "index not found"})
 
     turns = req.get("turns", [])
-    prompt = req.get("prompt", "")
-
-    if len(prompt) == 0:
-        prompt = request.app["prompt"]
 
     if not isinstance(turns, list):
         logging.error("turns is not a list")
@@ -236,10 +286,13 @@ async def query(request: web.Request):
 
     user_input = turns[-1].get("content", "")
 
-    retriever = get_retriever(request)  # type: ignore
     # What is the result here?
-    context = retriever.retrieve(user_input)
+    context = retrieve_from_collections(request, collections)
 
+    # get prompt.
+    prompt = req.get("prompt", "")
+    if len(prompt) == 0:
+        prompt = request.app["prompt"]
 
     # Switch to jinja2 so that we can more complex prompt.
     template_cache = app["template_cache"]
@@ -249,7 +302,6 @@ async def query(request: web.Request):
         environment = jinja2.Environment()
         template = environment.from_string(prompt)
         template_cache[prompt] = template
-
 
     new_prompt = template(query=user_input, context=context)
 
@@ -278,29 +330,6 @@ async def query(request: web.Request):
     elapsed_time = end_time - start_time
     logging.info(f"Elapsed time: {elapsed_time}")
     return web.json_response(dataclasses.asdict(resp))
-
-
-@routes.post("/retrieve/{org}/{agent}")
-async def retrieve(request: web.Request):
-    req = await request.json()
-    turns = req.get("turns", [])
-    prompt = req.get("prompt", "")
-    if len(prompt) == 0:
-        prompt = request.app["prompt"]
-    if len(turns) == 0:
-        return web.json_response({"errMsg": "input type is not str"})
-    if turns[-1].get("role", "") != "user":
-        return web.json_response({"errMsg": "last turn is not from user"})
-
-    user_input = turns[-1].get("content", "")
-
-    retriever = get_retriever(request)  # type: ignore
-
-    # What is the result here?
-    context = retriever.retrieve(user_input)
-
-    resp = {"reply": context}
-    return web.json_response(resp)
 
 
 def init_app(data_path, embedding_model):

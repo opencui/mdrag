@@ -23,6 +23,7 @@ from llama_index.core import (
     set_global_service_context,
 )
 from pybars import Compiler
+from jinja2 import Environment
 
 from rag_index import build_index
 from processors.embedding import get_embedding
@@ -297,7 +298,9 @@ def init_app(data_path, embedding_model):
     app.add_routes(routes)
 
     app["data_path"] = data_path
-    app["lru_cache"] = LRU(512)
+    
+    app["template_cache"] = LRU(1024)
+    app["retriever_cache"] = LRU(512)
 
     app["embedding_model"] = embedding_model
 

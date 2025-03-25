@@ -101,7 +101,7 @@ async def check(request: web.Request):
 @routes.post("/index/{org}/{agent}")
 async def build_index_handler(request: web.Request):
     agent_path = get_agent_path(request)
-    lru_cache = request.app["lru_cache"]
+    lru_cache = request.app["retriever_cache"]
 
     if os.path.exists(agent_path):
         shutil.rmtree(agent_path)
@@ -240,9 +240,19 @@ async def query(request: web.Request):
     # What is the result here?
     context = retriever.retrieve(user_input)
 
-    template = request.app["compiler"].compile(prompt)
 
-    new_prompt = template({"query": user_input, "context": context})
+    # Switch to jinja2 so that we can more complex prompt.
+    template_cache = app["template_cache"]
+    if prompt in template_cache:
+        template = template_cache[prompt]
+    else:
+        environment = jinja2.Environment()
+        template = environment.from_string(prompt)
+        template_cache[prompt] = template
+
+
+    new_prompt = template(query=user_input, context=context)
+
     logging.info("new_prompt")
     logging.info(new_prompt)
     logging.info(f"knowledge_model:{knowledge_model}")

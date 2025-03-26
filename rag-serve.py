@@ -234,8 +234,7 @@ async def query(request: web.Request):
 
     generate = Generator(
         agent_home=agent_home,
-        template_cache=template_cache,
-        lru_cache=lru_cache,
+        app=request.app,
         model_url=knowledge_url,
         model_name=knowledge_model_name,
         model_key=knowledge_key
@@ -250,13 +249,14 @@ async def query(request: web.Request):
     return await generate(req, backup_prompt)
 
 
-class Generator(BaseModel):
-    agent_home: AgentHome
-    template_cache: LRU
-    lru_cache: LRU
-    model_url: str
-    model_name: str
-    model_key: str
+class Generator:
+    def __init__(self, agent_home: AgentHome, app: web.Application, model_url: str, model_name: str, model_key: str):
+        self.agent_home = agent_home
+        self.template_cache = app["template_cache"]
+        self.lru_cache = app["retriever_cache"]
+        self.model_name = model_name
+        self.model_url = model_url
+        self.model_key = model_key
 
 
     async def __call__(self,  req: dict[str, Any], backup_prompt: str = None):

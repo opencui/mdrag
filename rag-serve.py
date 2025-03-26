@@ -51,7 +51,7 @@ def get_agent_path(req: web.Request, agent_name: str) -> str:
 
 
 @gin.configurable
-def get_retriever(agent_path: str, lru_cache: LRU, mode: str):
+def get_retriever(agent_path: str, lru_cache: LRU, mode):
     if agent_path in lru_cache and lru_cache[agent_path] is not None:
         return lru_cache[agent_path]
 
@@ -240,7 +240,7 @@ async def query(request: web.Request):
     req["query"] = user_input
 
     lru_cache = request.app["retriever_cache"]
-    retriever = get_retriever(agent_path, lru_cache, mode)  # type: ignore
+    retriever = get_retriever(agent_path, lru_cache)  # type: ignore
     # What is the result here?
     context = retriever.retrieve(user_input)
 

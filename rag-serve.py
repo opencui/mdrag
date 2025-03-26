@@ -14,6 +14,7 @@ import time
 
 import gin
 from lru import LRU
+
 from aiohttp import web
 from contextlib import closing
 from llama_index.core import (
@@ -23,6 +24,7 @@ from llama_index.core import (
     set_global_service_context,
 )
 
+from typing import Any
 from jinja2 import Environment
 from pydantic import BaseModel
 
@@ -282,7 +284,6 @@ async def retrieve(request: web.Request):
 
     retriever = get_retriever(agent_path, lru_cache, mode)  # type: ignore
 
-    # What is the result here?
     context = retriever.retrieve(user_input)
 
     resp = {"reply": context}

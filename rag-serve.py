@@ -24,7 +24,7 @@ from llama_index.core import (
 )
 
 from jinja2 import Environment
-
+from pydantic import BaseModel
 from rag_index import build_index
 from processors.embedding import get_embedding
 from processors.llm import get_generator

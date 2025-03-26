@@ -294,7 +294,7 @@ class Generator:
             if isinstance(collections, list) and len(collections) != 0:
                 context = []
                 for collection_in_json in collections:
-                    collection = FilteredCollection.model_validate(collection_in_json)
+                    collection = FilteredCollection.model_validate_json(collection_in_json)
                     agent_path = self.agent_home(collection.knowledge_name)
                     retriever = get_retriever(agent_path, self.lru_cache)  # type: ignore
                     # What is the result here?

@@ -182,7 +182,7 @@ async def tryitnow(request: web.Request):
 
 @routes.post("/query/{org}/{agent}")
 async def query(request: web.Request):
-    start_time = time.time()
+
     agent_name = request.match_info["agent"]
     agent_path = get_agent_path(request, agent_name)
     template_cache = request.app["template_cache"]
@@ -195,7 +195,7 @@ async def query(request: web.Request):
 async def raw_generate(agent_path: str, template_cache: LRU, lru_cache: LRU, backup_prompt: str, req: dict[str, Any]):
     logging.info("request")
     logging.info(req)
-
+    start_time = time.time()
     with open(os.path.join(agent_path, "headers.pickle"), "rb") as f:
         headers: dict = pickle.load(f)
 

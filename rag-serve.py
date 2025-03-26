@@ -243,7 +243,8 @@ async def query(request: web.Request):
     # What is the result here?
     context = retriever.retrieve(user_input)
 
-    template = request.app["compiler"].compile(prompt)
+    template_cache = request.app["template_cache"]
+    template = get_template(template_cache, prompt)
 
     new_prompt = template({"query": user_input, "context": context})
     logging.info("new_prompt")
@@ -290,7 +291,7 @@ async def retrieve(request: web.Request):
     return web.json_response(resp)
 
 
-def get_user_input(req: Dict[str, Any]):
+def get_user_input(req: dict[str, Any]):
     turns = req.get("turns", [])
     if len(turns) == 0:
         raise ValueError("the turns that hold user input is not there.")

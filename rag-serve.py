@@ -191,7 +191,7 @@ async def tryitnow(request: web.Request):
 
 # This is used for constrain the retrieved document.
 class FilteredCollection(BaseModel):
-    knowledge_name: string
+    knowledge_name: str
     tags: dict[str, str] = {}
 
 

@@ -310,7 +310,7 @@ def get_template(template_cache: LRU, prompt: str) -> str:
     if prompt in template_cache:
         template = template_cache[prompt]
     else:
-        environment = jinja2.Environment()
+        environment = Environment()
         template = environment.from_string(prompt)
         template_cache[prompt] = template
 

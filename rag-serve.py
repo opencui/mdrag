@@ -343,7 +343,6 @@ def init_app(data_path, embedding_model):
 
     app["embedding_model"] = embedding_model
 
-    app["compiler"] = Compiler()
     app["prompt"] = (
         "We have provided context information below. \n"
         "---------------------\n"

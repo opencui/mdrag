@@ -22,7 +22,9 @@ from llama_index.core import (
     load_index_from_storage,
     set_global_service_context,
 )
-from pybars import Compiler
+
+from jinja2 import Environment
+from pydantic import BaseModel
 
 from rag_index import build_index
 from processors.embedding import get_embedding
@@ -40,19 +42,14 @@ async def hello(_: web.Request):
     return web.Response(text="Hello, world")
 
 
-def get_agent_path(req: web.Request) -> str:
+def get_agent_path(req: web.Request, agent_name: str) -> str:
     data_path = req.app["data_path"]
     org_name = req.match_info["org"]
-    agent_name = req.match_info["agent"]
-    agent_path = os.path.join(data_path, org_name, agent_name)
-    return agent_path
+    return os.path.join(data_path, org_name, agent_name)
 
 
 @gin.configurable
-def get_retriever(req: web.Request, mode: str):
-    agent_path = get_agent_path(req)
-    lru_cache = req.app["lru_cache"]
-
+def get_retriever(agent_path: str, lru_cache: LRU, mode: str):
     if agent_path in lru_cache and lru_cache[agent_path] is not None:
         return lru_cache[agent_path]
 
@@ -67,31 +64,32 @@ def get_retriever(req: web.Request, mode: str):
             ).as_retriever()
             retriever = HybridRetriever(embedding, keyword)  # type: ignore
             lru_cache[agent_path] = retriever
-
             return retriever
+
         case "embedding":
             storage_context = StorageContext.from_defaults(persist_dir=agent_path)
             retriever = load_index_from_storage(
                 storage_context, index_id="embedding"
             ).as_retriever()
             lru_cache[agent_path] = retriever
-
             return retriever
+
         case "keyword":
             storage_context = StorageContext.from_defaults(persist_dir=agent_path)
             retriever = load_index_from_storage(
                 storage_context, index_id="keyword"
             ).as_retriever()
             lru_cache[agent_path] = retriever
-
             return retriever
+
         case _:
             return None
 
 
 @routes.get("/index/{org}/{agent}")
 async def check(request: web.Request):
-    agent_path = get_agent_path(request)
+    agent_name = request.match_info["agent"]
+    agent_path = get_agent_path(request, agent_name)
     if not os.path.exists(agent_path):
         return web.json_response({"errMsg": "index not found"}, status=500)
     return web.json_response({})
@@ -99,8 +97,9 @@ async def check(request: web.Request):
 
 @routes.post("/index/{org}/{agent}")
 async def build_index_handler(request: web.Request):
-    agent_path = get_agent_path(request)
-    lru_cache = request.app["lru_cache"]
+    agent_name = request.match_info["agent"]
+    agent_path = get_agent_path(request, agent_name)
+    lru_cache = request.app["retriever_cache"]
 
     if os.path.exists(agent_path):
         shutil.rmtree(agent_path)
@@ -182,7 +181,8 @@ async def tryitnow(request: web.Request):
 @routes.post("/query/{org}/{agent}")
 async def query(request: web.Request):
     start_time = time.time()
-    agent_path = get_agent_path(request)
+    agent_name = request.match_info["agent"]
+    agent_path = get_agent_path(request, agent_name)
 
     req = await request.json()
     logging.info("request")
@@ -235,7 +235,9 @@ async def query(request: web.Request):
 
     user_input = turns[-1].get("content", "")
 
-    retriever = get_retriever(request)  # type: ignore
+
+    lru_cache = request.app["retriever_cache"]
+    retriever = get_retriever(agent_path, lru_cache, mode)  # type: ignore
     # What is the result here?
     context = retriever.retrieve(user_input)
 
@@ -271,19 +273,14 @@ async def query(request: web.Request):
 
 @routes.post("/retrieve/{org}/{agent}")
 async def retrieve(request: web.Request):
+    agent_name = request.match_info["agent"]
+    agent_path = get_agent_path(request, agent_name)
+    lru_cache = request.app["retriever_cache"]
+
     req = await request.json()
-    turns = req.get("turns", [])
-    prompt = req.get("prompt", "")
-    if len(prompt) == 0:
-        prompt = request.app["prompt"]
-    if len(turns) == 0:
-        return web.json_response({"errMsg": "input type is not str"})
-    if turns[-1].get("role", "") != "user":
-        return web.json_response({"errMsg": "last turn is not from user"})
+    user_input = get_user_input(req)
 
-    user_input = turns[-1].get("content", "")
-
-    retriever = get_retriever(request)  # type: ignore
+    retriever = get_retriever(agent_path, lru_cache, mode)  # type: ignore
 
     # What is the result here?
     context = retriever.retrieve(user_input)
@@ -292,16 +289,41 @@ async def retrieve(request: web.Request):
     return web.json_response(resp)
 
 
+def get_user_input(req: Dict[str, Any]):
+    turns = req.get("turns", [])
+    if len(turns) == 0:
+        raise ValueError("the turns that hold user input is not there.")
+
+    if turns[-1].get("role", "") != "user":
+        raise ValueError("last turn is not from user")
+
+    return turns[-1].get("content", "")
+
+
+def get_template(template_cache: LRU, prompt: str) -> str:
+    if len(prompt) == 0:
+        raise ValueError("Prompt is missing.")
+
+    if prompt in template_cache:
+        template = template_cache[prompt]
+    else:
+        environment = jinja2.Environment()
+        template = environment.from_string(prompt)
+        template_cache[prompt] = template
+
+    return template
+
+
 def init_app(data_path, embedding_model):
     app = web.Application()
     app.add_routes(routes)
 
     app["data_path"] = data_path
-    app["lru_cache"] = LRU(512)
 
+    app["template_cache"] = LRU(1024)
+    app["retriever_cache"] = LRU(512)
     app["embedding_model"] = embedding_model
 
-    app["compiler"] = Compiler()
     app["prompt"] = (
         "We have provided context information below. \n"
         "---------------------\n"

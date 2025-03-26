@@ -185,8 +185,14 @@ async def query(request: web.Request):
     start_time = time.time()
     agent_name = request.match_info["agent"]
     agent_path = get_agent_path(request, agent_name)
+    template_cache = request.app["template_cache"]
+    lru_cache = request.app["retriever_cache"]
+    backup_prompt = request.app["prompt"]
 
     req = await request.json()
+    return await raw_generate(agent_path, template_cache, lru_cache, backup_prompt, req)
+
+async def raw_generate(agent_path: str, template_cache: LRU, lru_cache: LRU, backup_prompt: str, req: dict[str, Any]):
     logging.info("request")
     logging.info(req)
 
@@ -218,7 +224,7 @@ async def query(request: web.Request):
     prompt = req.get("prompt", "")
 
     if len(prompt) == 0:
-        prompt = request.app["prompt"]
+        prompt = backup_prompt
 
     if not isinstance(turns, list):
         logging.error("turns is not a list")
@@ -239,12 +245,13 @@ async def query(request: web.Request):
 
     req["query"] = user_input
 
-    lru_cache = request.app["retriever_cache"]
+
     retriever = get_retriever(agent_path, lru_cache)  # type: ignore
     # What is the result here?
     context = retriever.retrieve(user_input)
+    req["context"] = context
 
-    template_cache = request.app["template_cache"]
+
     template = get_template(template_cache, prompt)
 
     new_prompt = template.render(**req)

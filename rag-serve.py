@@ -231,7 +231,9 @@ async def query(request: web.Request):
         return web.json_response({"errMsg": "model name found"})
 
     knowledge_model_name = f"{knowledge_model}/{knowledge_model_name}"
-
+    logging.info(f"knowledge_model:{knowledge_model}")
+    logging.info(f"model_name: {knowledge_model_name}")
+    logging.info(f"llm_url: {knowledge_url}")
     generate = Generator(
         agent_home=agent_home,
         app=request.app,
@@ -308,9 +310,6 @@ class Generator:
         new_prompt = template.render(**req)
         logging.info("new_prompt")
         logging.info(new_prompt)
-        logging.info(f"knowledge_model:{knowledge_model}")
-        logging.info(f"model_name: {knowledge_model_name}")
-        logging.info(f"llm_url: {knowledge_url}")
         match knowledge_model:
             case "openai":
                 llm = get_generator(  # type: ignore

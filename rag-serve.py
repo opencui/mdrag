@@ -204,8 +204,6 @@ async def query(request: web.Request):
     org_name = request.match_info["org"]
     agent_home = AgentHome(data_path=data_path, org_name=org_name)
 
-    template_cache = request.app["template_cache"]
-    lru_cache = request.app["retriever_cache"]
     backup_prompt = request.app["prompt"]
 
     agent_path = agent_home(agent_name)
@@ -234,6 +232,7 @@ async def query(request: web.Request):
     logging.info(f"knowledge_model:{knowledge_model}")
     logging.info(f"model_name: {knowledge_model_name}")
     logging.info(f"llm_url: {knowledge_url}")
+
     generate = Generator(
         agent_home=agent_home,
         app=request.app,
@@ -251,6 +250,50 @@ async def query(request: web.Request):
     return await generate(req, backup_prompt)
 
 
+# We assume all the knowledges from the same org is colocated.
+@routes.post("/generate/{org}/")
+async def generate(request: web.Request):
+
+
+    # create agent home
+    data_path = request.app["data_path"]
+    org_name = request.match_info["org"]
+    agent_home = AgentHome(data_path=data_path, org_name=org_name)
+
+    backup_prompt = request.app["prompt"]
+
+
+    req = await request.json()
+
+    knowledge_key = req.get("Knowledge-Key")
+    knowledge_url = req.get("Knowledge-Url")
+    knowledge_model = req.get("Knowledge-Model").lower()
+    knowledge_model_name = req.get("Knowledge-Model-Name")
+
+    if knowledge_model == "":
+        knowledge_model = "openai"
+
+    if knowledge_model_name is None:
+        logging.info("could not find the model name")
+        return web.json_response({"errMsg": "model name found"})
+
+    knowledge_model_name = f"{knowledge_model}/{knowledge_model_name}"
+    logging.info(f"knowledge_model:{knowledge_model}")
+    logging.info(f"model_name: {knowledge_model_name}")
+    logging.info(f"llm_url: {knowledge_url}")
+
+    generate = Generator(
+        agent_home=agent_home,
+        app=request.app,
+        model_url=knowledge_url,
+        model_name=knowledge_model_name,
+        model_key=knowledge_key
+    )
+
+    return await generate(req, backup_prompt)
+
+
+
 class Generator:
     def __init__(self, agent_home: AgentHome, app: web.Application, model_url: str, model_name: str, model_key: str):
         self.agent_home = agent_home
@@ -259,7 +302,6 @@ class Generator:
         self.model_name = model_name
         self.model_url = model_url
         self.model_key = model_key
-
 
     async def __call__(self,  req: dict[str, Any], backup_prompt: str = None):
         logging.info("request")
@@ -298,6 +340,10 @@ class Generator:
                 for collection_in_json in collections:
                     collection = FilteredCollection.model_validate_json(collection_in_json)
                     agent_path = self.agent_home(collection.knowledge_name)
+
+                    if not os.path.exists(agent_path):
+                        return web.json_response({"errMsg": f"index not found for {collection.knowledge_name}"})
+
                     retriever = get_retriever(agent_path, self.lru_cache)  # type: ignore
                     # What is the result here?
                     context.extend(retriever.retrieve(user_input))

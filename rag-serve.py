@@ -237,6 +237,7 @@ async def query(request: web.Request):
 
     user_input = turns[-1].get("content", "")
 
+    req["query"] = user_input
 
     lru_cache = request.app["retriever_cache"]
     retriever = get_retriever(agent_path, lru_cache, mode)  # type: ignore
@@ -246,7 +247,7 @@ async def query(request: web.Request):
     template_cache = request.app["template_cache"]
     template = get_template(template_cache, prompt)
 
-    new_prompt = template({"query": user_input, "context": context})
+    new_prompt = template.render(**req)
     logging.info("new_prompt")
     logging.info(new_prompt)
     logging.info(f"knowledge_model:{knowledge_model}")

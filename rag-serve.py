@@ -310,6 +310,7 @@ class Generator:
         new_prompt = template.render(**req)
         logging.info("new_prompt")
         logging.info(new_prompt)
+        knowledge_model = self.model_name.split("/")[0]
         match knowledge_model:
             case "openai":
                 llm = get_generator(  # type: ignore

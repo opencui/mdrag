@@ -9,7 +9,7 @@ from openai import AsyncOpenAI
 
 
 @gin.configurable
-def get_generator(model, openai_base_url=None, openai_api_key=None):
+def get_generator(model, openai_base_url=None, openai_api_key=None, temperature=0, topk=None):
     logging.info(f"Using {model}:{openai_base_url} as generator...")
     models = model.split("/")
     if models[0] == "openai":
@@ -17,6 +17,7 @@ def get_generator(model, openai_base_url=None, openai_api_key=None):
             model=models[1],
             url=openai_base_url,
             api_key=openai_api_key,
+            temperature=temperature
         )
     elif model.startswith(".") and model.endswith("bin"):
         return LlamaGenerator(model)

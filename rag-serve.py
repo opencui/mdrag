@@ -11,6 +11,7 @@ import sys
 import tempfile
 import pickle
 import time
+from email.policy import default
 
 import gin
 from lru import LRU
@@ -57,6 +58,11 @@ def get_agent_path(req: web.Request, agent_name: str) -> str:
     org_name = req.match_info["org"]
     get_agent_home = AgentHome(data_path=data_path, org_name=org_name)
     return get_agent_home(agent_name)
+
+
+class InferenceConfig(BaseModel):
+    temperature: float = Field(default=0.0, description="temperature")
+    topk: int = Field(default=1, description="topk")
 
 
 @gin.configurable
@@ -253,44 +259,36 @@ async def query(request: web.Request):
 # We assume all the knowledges from the same org is colocated.
 @routes.post("/generate/{org}/")
 async def generate(request: web.Request):
-
-
     # create agent home
     data_path = request.app["data_path"]
     org_name = request.match_info["org"]
     agent_home = AgentHome(data_path=data_path, org_name=org_name)
 
-    backup_prompt = request.app["prompt"]
-
 
     req = await request.json()
 
-    knowledge_key = req.get("Knowledge-Key")
-    knowledge_url = req.get("Knowledge-Url")
-    knowledge_model = req.get("Knowledge-Model").lower()
-    knowledge_model_name = req.get("Knowledge-Model-Name")
+    model_key = req.get("model_key")
+    model_url = req.get("model_url")
+    model_family = req.get("model_family").lower()
+    model_label = req.get("model_label")
 
-    if knowledge_model == "":
-        knowledge_model = "openai"
-
-    if knowledge_model_name is None:
+    if model_label is None or model_family is None:
         logging.info("could not find the model name")
         return web.json_response({"errMsg": "model name found"})
 
-    knowledge_model_name = f"{knowledge_model}/{knowledge_model_name}"
-    logging.info(f"knowledge_model:{knowledge_model}")
-    logging.info(f"model_name: {knowledge_model_name}")
-    logging.info(f"llm_url: {knowledge_url}")
+    model_name = f"{model_family}/{model_label}"
+    logging.info(f"model_name: {model_name}")
+    logging.info(f"model_url: {model_url}")
 
     generate = Generator(
         agent_home=agent_home,
         app=request.app,
-        model_url=knowledge_url,
-        model_name=knowledge_model_name,
-        model_key=knowledge_key
+        model_url=model_url,
+        model_name=model_name,
+        model_key=model_key
     )
 
-    return await generate(req, backup_prompt)
+    return await generate(req, None)
 
 
 
@@ -332,6 +330,7 @@ class Generator:
         user_input = turns[-1].get("content", "")
         req["query"] = user_input
 
+        # We assume the context is what prompt will use,
         if "context" not in req:
             collections = req["collections"]
 
@@ -356,18 +355,13 @@ class Generator:
         new_prompt = template.render(**req)
         logging.info("new_prompt")
         logging.info(new_prompt)
-        knowledge_model = self.model_name.split("/")[0]
-        match knowledge_model:
-            case "openai":
-                llm = get_generator(  # type: ignore
-                    model=self.model_name,
-                    openai_api_key=self.model_key,
-                    openai_base_url=self.model_url,
-                )
-            case _:
-                return web.json_response(
-                    {"errMsg": f"knowledge model error: {knowledge_model}"}
-                )
+        infer_config = InferenceConfig.model_validate_json(req["inference_config"])
+        llm = get_generator(  # type: ignore
+            model=self.model_name,
+            openai_api_key=self.model_key,
+            openai_base_url=self.model_url,
+            temperature=infer_config.temperature
+        )
 
         # So that we can use different llm.
         resp = await llm.agenerate(new_prompt, turns)

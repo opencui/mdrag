@@ -11,7 +11,7 @@ import sys
 import tempfile
 import pickle
 import time
-from email.policy import default
+from typing import Optional
 
 import gin
 from lru import LRU
@@ -39,6 +39,41 @@ logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
 routes = web.RouteTableDef()
 
+
+class OpenAIMessage(BaseModel):
+    role: str
+    content: str
+
+
+class KnowledgeTag(BaseModel):
+    key: str
+    value: str
+
+
+class FilteredKnowledge(BaseModel):
+    knowledge_label: str = Field(..., alias="knowledgeLabel")
+    tags: list[KnowledgeTag]
+
+    class Config:
+        populate_by_name = True
+        allow_population_by_field_name = True
+
+
+class System1Request(BaseModel):
+    prompt: str
+    model_url: str = Field(..., alias="modelUrl")
+    model_family: str = Field(..., alias="modelFamily")
+    model_name: str = Field(..., alias="modelName")
+    model_key: str = Field(..., alias="modelKey")
+    contexts: list[str]
+    turns: list[OpenAIMessage]
+    collections: Optional[list[FilteredKnowledge]] = Field(None, alias="collections")
+    temperature: float = 0.0
+    top_k: int = Field(1, alias="topK")
+
+    class Config:
+        populate_by_name = True
+        allow_population_by_field_name = True
 
 @routes.get("/")
 async def hello(_: web.Request):
@@ -257,7 +292,7 @@ async def query(request: web.Request):
 
 
 # We assume all the knowledges from the same org is colocated.
-@routes.post("/generate/{org}/")
+@routes.post("/api/v1/{org}/generate/")
 async def generate(request: web.Request):
     # create agent home
     data_path = request.app["data_path"]
@@ -331,7 +366,7 @@ class Generator:
         req["query"] = user_input
 
         # We assume the context is what prompt will use,
-        if "context" not in req:
+        if "contexts" not in req:
             collections = req["collections"]
 
             if isinstance(collections, list) and len(collections) != 0:
@@ -355,12 +390,12 @@ class Generator:
         new_prompt = template.render(**req)
         logging.info("new_prompt")
         logging.info(new_prompt)
-        infer_config = InferenceConfig.model_validate_json(req["inference_config"])
+        temperature = float(req["temperature"])
         llm = get_generator(  # type: ignore
             model=self.model_name,
-            openai_api_key=self.model_key,
-            openai_base_url=self.model_url,
-            temperature=infer_config.temperature
+            api_key=self.model_key,
+            model_url=self.model_url,
+            temperature=temperature
         )
 
         # So that we can use different llm.

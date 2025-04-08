@@ -390,7 +390,12 @@ class Generator:
         new_prompt = template.render(**req)
         logging.info("new_prompt")
         logging.info(new_prompt)
-        temperature = float(req["temperature"])
+
+        if "temperature" in req:
+            temperature = float(req["temperature"])
+        else:
+            temperature = 0
+
         llm = get_generator(  # type: ignore
             model=self.model_name,
             api_key=self.model_key,

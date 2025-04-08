@@ -11,9 +11,11 @@ import sys
 import tempfile
 import pickle
 import time
+from typing import Optional
 
 import gin
 from lru import LRU
+
 from aiohttp import web
 from contextlib import closing
 from llama_index.core import (
@@ -22,7 +24,10 @@ from llama_index.core import (
     load_index_from_storage,
     set_global_service_context,
 )
-from pybars import Compiler
+
+from typing import Any
+from jinja2 import Environment
+from pydantic import BaseModel, Field
 
 from rag_index import build_index
 from processors.embedding import get_embedding
@@ -35,24 +40,68 @@ logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 routes = web.RouteTableDef()
 
 
+class OpenAIMessage(BaseModel):
+    role: str
+    content: str
+
+
+class KnowledgeTag(BaseModel):
+    key: str
+    value: str
+
+
+class FilteredKnowledge(BaseModel):
+    knowledge_label: str = Field(..., alias="knowledgeLabel")
+    tags: list[KnowledgeTag]
+
+    class Config:
+        populate_by_name = True
+        allow_population_by_field_name = True
+
+
+class System1Request(BaseModel):
+    prompt: str
+    model_url: str = Field(..., alias="modelUrl")
+    model_family: str = Field(..., alias="modelFamily")
+    model_name: str = Field(..., alias="modelName")
+    model_key: str = Field(..., alias="modelKey")
+    contexts: list[str]
+    turns: list[OpenAIMessage]
+    collections: Optional[list[FilteredKnowledge]] = Field(None, alias="collections")
+    temperature: float = 0.0
+    top_k: int = Field(1, alias="topK")
+
+    class Config:
+        populate_by_name = True
+        allow_population_by_field_name = True
+
 @routes.get("/")
 async def hello(_: web.Request):
     return web.Response(text="Hello, world")
 
 
-def get_agent_path(req: web.Request) -> str:
+class AgentHome(BaseModel):
+    data_path: str = Field(..., description="Base path for data storage")
+    org_name: str = Field(..., description="Organization name")
+
+    def __call__(self, agent_name: str) -> str:
+        return os.path.join(self.data_path, self.org_name, agent_name)
+
+
+def get_agent_path(req: web.Request, agent_name: str) -> str:
     data_path = req.app["data_path"]
     org_name = req.match_info["org"]
-    agent_name = req.match_info["agent"]
-    agent_path = os.path.join(data_path, org_name, agent_name)
-    return agent_path
+    get_agent_home = AgentHome(data_path=data_path, org_name=org_name)
+    return get_agent_home(agent_name)
+
+
+class InferenceConfig(BaseModel):
+    temperature: float = Field(default=0.0, description="temperature")
+    topk: int = Field(default=1, description="topk")
 
 
 @gin.configurable
-def get_retriever(req: web.Request, mode: str):
-    agent_path = get_agent_path(req)
-    lru_cache = req.app["lru_cache"]
-
+def get_retriever(agent_path: str, lru_cache: LRU, mode):
     if agent_path in lru_cache and lru_cache[agent_path] is not None:
         return lru_cache[agent_path]
 
@@ -67,31 +116,32 @@ def get_retriever(req: web.Request, mode: str):
             ).as_retriever()
             retriever = HybridRetriever(embedding, keyword)  # type: ignore
             lru_cache[agent_path] = retriever
-
             return retriever
+
         case "embedding":
             storage_context = StorageContext.from_defaults(persist_dir=agent_path)
             retriever = load_index_from_storage(
                 storage_context, index_id="embedding"
             ).as_retriever()
             lru_cache[agent_path] = retriever
-
             return retriever
+
         case "keyword":
             storage_context = StorageContext.from_defaults(persist_dir=agent_path)
             retriever = load_index_from_storage(
                 storage_context, index_id="keyword"
             ).as_retriever()
             lru_cache[agent_path] = retriever
-
             return retriever
+
         case _:
             return None
 
 
 @routes.get("/index/{org}/{agent}")
 async def check(request: web.Request):
-    agent_path = get_agent_path(request)
+    agent_name = request.match_info["agent"]
+    agent_path = get_agent_path(request, agent_name)
     if not os.path.exists(agent_path):
         return web.json_response({"errMsg": "index not found"}, status=500)
     return web.json_response({})
@@ -99,8 +149,9 @@ async def check(request: web.Request):
 
 @routes.post("/index/{org}/{agent}")
 async def build_index_handler(request: web.Request):
-    agent_path = get_agent_path(request)
-    lru_cache = request.app["lru_cache"]
+    agent_name = request.match_info["agent"]
+    agent_path = get_agent_path(request, agent_name)
+    lru_cache = request.app["retriever_cache"]
 
     if os.path.exists(agent_path):
         shutil.rmtree(agent_path)
@@ -179,15 +230,26 @@ async def tryitnow(request: web.Request):
     return web.json_response({})
 
 
+# This is used for constrain the retrieved document.
+class FilteredCollection(BaseModel):
+    knowledge_name: str
+    tags: dict[str, str] = {}
+
+
 @routes.post("/query/{org}/{agent}")
 async def query(request: web.Request):
-    start_time = time.time()
-    agent_path = get_agent_path(request)
+    agent_name = request.match_info["agent"]
+
+    # create agent home
+    data_path = request.app["data_path"]
+    org_name = request.match_info["org"]
+    agent_home = AgentHome(data_path=data_path, org_name=org_name)
+
+    backup_prompt = request.app["prompt"]
+
+    agent_path = agent_home(agent_name)
 
     req = await request.json()
-    logging.info("request")
-    logging.info(req)
-
     with open(os.path.join(agent_path, "headers.pickle"), "rb") as f:
         headers: dict = pickle.load(f)
 
@@ -208,88 +270,189 @@ async def query(request: web.Request):
         return web.json_response({"errMsg": "model name found"})
 
     knowledge_model_name = f"{knowledge_model}/{knowledge_model_name}"
+    logging.info(f"knowledge_model:{knowledge_model}")
+    logging.info(f"model_name: {knowledge_model_name}")
+    logging.info(f"llm_url: {knowledge_url}")
+
+    generate = Generator(
+        agent_home=agent_home,
+        app=request.app,
+        model_url=knowledge_url,
+        model_name=knowledge_model_name,
+        model_key=knowledge_key
+    )
 
     if not os.path.exists(agent_path):
         return web.json_response({"errMsg": "index not found"})
 
-    turns = req.get("turns", [])
-    prompt = req.get("prompt", "")
+    # The default does not have tags in the api.
+    req["collections"] = [FilteredCollection(knowledge_name=agent_name).model_dump_json()]
 
-    if len(prompt) == 0:
-        prompt = request.app["prompt"]
+    return await generate(req, backup_prompt)
 
-    if not isinstance(turns, list):
-        logging.error("turns is not a list")
-        return web.json_response({"errMsg": "turns type is not list"})
 
-    if len(turns) == 0:
-        logging.error("empty turns")
-        feedback = req.get("feedback", None)
-        if feedback:
-            return web.json_response({"reply": ""})
-        return web.json_response({"errMsg": "turns length cannot be empty"})
+# We assume all the knowledges from the same org is colocated.
+@routes.post("/api/v1/{org}/generate/")
+async def generate(request: web.Request):
+    # create agent home
+    data_path = request.app["data_path"]
+    org_name = request.match_info["org"]
+    agent_home = AgentHome(data_path=data_path, org_name=org_name)
 
-    if turns[-1].get("role", "") != "user":
-        logging.info("last turn is not from user")
-        return web.json_response({"errMsg": "last turn is not from user"})
 
-    user_input = turns[-1].get("content", "")
+    req = await request.json()
 
-    retriever = get_retriever(request)  # type: ignore
-    # What is the result here?
-    context = retriever.retrieve(user_input)
+    model_key = req.get("model_key")
+    model_url = req.get("model_url")
+    model_family = req.get("model_family").lower()
+    model_label = req.get("model_label")
 
-    template = request.app["compiler"].compile(prompt)
+    if model_label is None or model_family is None:
+        logging.info("could not find the model name")
+        return web.json_response({"errMsg": "model name found"})
 
-    new_prompt = template({"query": user_input, "context": context})
-    logging.info("new_prompt")
-    logging.info(new_prompt)
-    logging.info(f"knowledge_model:{knowledge_model}")
-    logging.info(f"model_name: {knowledge_model_name}")
-    logging.info(f"llm_url: {knowledge_url}")
-    match knowledge_model:
-        case "openai":
-            llm = get_generator(  # type: ignore
-                model=knowledge_model_name,
-                openai_api_key=knowledge_key,
-                openai_base_url=knowledge_url,
-            )
-        case _:
-            return web.json_response(
-                {"errMsg": f"knowledge model error: {knowledge_model}"}
-            )
+    model_name = f"{model_family}/{model_label}"
+    logging.info(f"model_name: {model_name}")
+    logging.info(f"model_url: {model_url}")
 
-    # So that we can use different llm.
-    resp = await llm.agenerate(new_prompt, turns)
-    logging.info("resp")
-    logging.info(resp)
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    logging.info(f"Elapsed time: {elapsed_time}")
-    return web.json_response(dataclasses.asdict(resp))
+    generate = Generator(
+        agent_home=agent_home,
+        app=request.app,
+        model_url=model_url,
+        model_name=model_name,
+        model_key=model_key
+    )
+
+    return await generate(req, None)
+
+
+
+class Generator:
+    def __init__(self, agent_home: AgentHome, app: web.Application, model_url: str, model_name: str, model_key: str):
+        self.agent_home = agent_home
+        self.template_cache = app["template_cache"]
+        self.lru_cache = app["retriever_cache"]
+        self.model_name = model_name
+        self.model_url = model_url
+        self.model_key = model_key
+
+    async def __call__(self,  req: dict[str, Any], backup_prompt: str = None):
+        logging.info("request")
+        logging.info(req)
+        start_time = time.time()
+
+        turns = req.get("turns", [])
+        prompt = req.get("prompt", "")
+
+        if len(prompt) == 0:
+            prompt = backup_prompt
+
+        if not isinstance(turns, list):
+            logging.error("turns is not a list")
+            return web.json_response({"errMsg": "turns type is not list"})
+
+        if len(turns) == 0:
+            logging.error("empty turns")
+            feedback = req.get("feedback", None)
+            if feedback:
+                return web.json_response({"reply": ""})
+            return web.json_response({"errMsg": "turns length cannot be empty"})
+
+        if turns[-1].get("role", "") != "user":
+            logging.info("last turn is not from user")
+            return web.json_response({"errMsg": "last turn is not from user"})
+
+        user_input = turns[-1].get("content", "")
+        req["query"] = user_input
+
+        # We assume the context is what prompt will use,
+        if "contexts" not in req:
+            collections = req["collections"]
+
+            if isinstance(collections, list) and len(collections) != 0:
+                context = []
+                for collection_in_json in collections:
+                    collection = FilteredCollection.model_validate_json(collection_in_json)
+                    agent_path = self.agent_home(collection.knowledge_name)
+
+                    if not os.path.exists(agent_path):
+                        return web.json_response({"errMsg": f"index not found for {collection.knowledge_name}"})
+
+                    retriever = get_retriever(agent_path, self.lru_cache)  # type: ignore
+                    # What is the result here?
+                    context.extend(retriever.retrieve(user_input))
+
+                req["context"] = context
+
+
+        template = get_template(self.template_cache, prompt)
+
+        new_prompt = template.render(**req)
+        logging.info("new_prompt")
+        logging.info(new_prompt)
+
+        if "temperature" in req:
+            temperature = float(req["temperature"])
+        else:
+            temperature = 0
+
+        llm = get_generator(  # type: ignore
+            model=self.model_name,
+            api_key=self.model_key,
+            model_url=self.model_url,
+            temperature=temperature
+        )
+
+        # So that we can use different llm.
+        resp = await llm.agenerate(new_prompt, turns)
+        logging.info("resp")
+        logging.info(resp)
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        logging.info(f"Elapsed time: {elapsed_time}")
+        return web.json_response(dataclasses.asdict(resp))
 
 
 @routes.post("/retrieve/{org}/{agent}")
 async def retrieve(request: web.Request):
+    agent_name = request.match_info["agent"]
+    agent_path = get_agent_path(request, agent_name)
+    lru_cache = request.app["retriever_cache"]
+
     req = await request.json()
-    turns = req.get("turns", [])
-    prompt = req.get("prompt", "")
-    if len(prompt) == 0:
-        prompt = request.app["prompt"]
-    if len(turns) == 0:
-        return web.json_response({"errMsg": "input type is not str"})
-    if turns[-1].get("role", "") != "user":
-        return web.json_response({"errMsg": "last turn is not from user"})
+    user_input = get_user_input(req)
 
-    user_input = turns[-1].get("content", "")
+    retriever = get_retriever(agent_path, lru_cache, mode)  # type: ignore
 
-    retriever = get_retriever(request)  # type: ignore
-
-    # What is the result here?
     context = retriever.retrieve(user_input)
 
     resp = {"reply": context}
     return web.json_response(resp)
+
+
+def get_user_input(req: dict[str, Any]):
+    turns = req.get("turns", [])
+    if len(turns) == 0:
+        raise ValueError("the turns that hold user input is not there.")
+
+    if turns[-1].get("role", "") != "user":
+        raise ValueError("last turn is not from user")
+
+    return turns[-1].get("content", "")
+
+
+def get_template(template_cache: LRU, prompt: str) -> str:
+    if len(prompt) == 0:
+        raise ValueError("Prompt is missing.")
+
+    if prompt in template_cache:
+        template = template_cache[prompt]
+    else:
+        environment = Environment()
+        template = environment.from_string(prompt)
+        template_cache[prompt] = template
+
+    return template
 
 
 def init_app(data_path, embedding_model):
@@ -297,11 +460,11 @@ def init_app(data_path, embedding_model):
     app.add_routes(routes)
 
     app["data_path"] = data_path
-    app["lru_cache"] = LRU(512)
 
+    app["template_cache"] = LRU(1024)
+    app["retriever_cache"] = LRU(512)
     app["embedding_model"] = embedding_model
 
-    app["compiler"] = Compiler()
     app["prompt"] = (
         "We have provided context information below. \n"
         "---------------------\n"

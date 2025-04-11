@@ -11,7 +11,7 @@ import sys
 import tempfile
 import pickle
 import time
-from typing import Optional
+from typing import Optional, Literal, Annotated, Union
 
 import gin
 from lru import LRU
@@ -27,7 +27,7 @@ from llama_index.core import (
 
 from typing import Any
 from jinja2 import Environment
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 
 from rag_index import build_index
 from processors.embedding import get_embedding
@@ -45,18 +45,31 @@ class OpenAIMessage(BaseModel):
     content: str
 
 
+# All system1 should be one of these.
 class KnowledgeTag(BaseModel):
     key: str
-    value: str
+    value: str | None = None
 
 
-class FilteredKnowledge(BaseModel):
-    knowledge_label: str = Field(..., alias="knowledgeLabel")
+# FilePart will be used as anonymous knowledge.
+class FilePart(BaseModel):
+    type: Literal["FilePart"] = Field("FilePart", frozen=True)
+    content: str
+    # this is not the 'type' field used for polymorphism
+    file_type: str = "txt"
+
+
+class RetrievablePart(BaseModel):
+    type: Literal["RetrievablePart"] = Field("RetrievablePart", frozen=True)
+    name: str
     tags: list[KnowledgeTag]
 
-    class Config:
-        populate_by_name = True
-        allow_population_by_field_name = True
+
+# KnowledgePart is a union of FilePart and RetrievablePart
+KnowledgePart = Annotated[
+    Union[FilePart, RetrievablePart],
+    Field(discriminator="type")
+]
 
 
 class System1Request(BaseModel):
@@ -67,13 +80,14 @@ class System1Request(BaseModel):
     model_key: str = Field(..., alias="modelKey")
     contexts: list[str]
     turns: list[OpenAIMessage]
-    collections: Optional[list[FilteredKnowledge]] = Field(None, alias="collections")
+    collections: Optional[list[KnowledgePart]] = Field(None, alias="collections")
     temperature: float = 0.0
     top_k: int = Field(1, alias="topK")
 
     class Config:
         populate_by_name = True
         allow_population_by_field_name = True
+
 
 @routes.get("/")
 async def hello(_: web.Request):
@@ -230,10 +244,6 @@ async def tryitnow(request: web.Request):
     return web.json_response({})
 
 
-# This is used for constrain the retrieved document.
-class FilteredCollection(BaseModel):
-    knowledge_name: str
-    tags: dict[str, str] = {}
 
 
 @routes.post("/query/{org}/{agent}")
@@ -286,7 +296,7 @@ async def query(request: web.Request):
         return web.json_response({"errMsg": "index not found"})
 
     # The default does not have tags in the api.
-    req["collections"] = [FilteredCollection(knowledge_name=agent_name).model_dump_json()]
+    req["collections"] = [RetrievablePart(name=agent_name, tags=[]).model_dump()]
 
     return await generate(req, backup_prompt)
 
@@ -335,6 +345,7 @@ class Generator:
         self.model_name = model_name
         self.model_url = model_url
         self.model_key = model_key
+        self.adapter = app["adapter"]
 
     async def __call__(self,  req: dict[str, Any], backup_prompt: str = None):
         logging.info("request")
@@ -372,16 +383,22 @@ class Generator:
             if isinstance(collections, list) and len(collections) != 0:
                 context = []
                 for collection_in_json in collections:
-                    collection = FilteredCollection.model_validate_json(collection_in_json)
-                    agent_path = self.agent_home(collection.knowledge_name)
+                    collection = self.adapter.validate_python(collection_in_json)
+                    print(collection)
+                    if isinstance(collection, RetrievablePart):
+                        print(collection)
+                        agent_path = self.agent_home(collection.name)
 
-                    if not os.path.exists(agent_path):
-                        return web.json_response({"errMsg": f"index not found for {collection.knowledge_name}"})
+                        if not os.path.exists(agent_path):
+                            return web.json_response({"errMsg": f"index not found for {collection.name}"})
 
-                    retriever = get_retriever(agent_path, self.lru_cache)  # type: ignore
-                    # What is the result here?
-                    context.extend(retriever.retrieve(user_input))
-
+                        retriever = get_retriever(agent_path, self.lru_cache)  # type: ignore
+                        # What is the result here?
+                        context.extend(retriever.retrieve(user_input))
+                    elif isinstance(collection, FilePart):
+                        context.extend(collection.content)
+                    else:
+                        return web.json_response({"errMsg": f"do not know how to handle {collection}"})
                 req["context"] = context
 
 
@@ -464,7 +481,7 @@ def init_app(data_path, embedding_model):
     app["template_cache"] = LRU(1024)
     app["retriever_cache"] = LRU(512)
     app["embedding_model"] = embedding_model
-
+    app["adapter"] = TypeAdapter(KnowledgePart)
     app["prompt"] = (
         "We have provided context information below. \n"
         "---------------------\n"

@@ -11,7 +11,7 @@ import sys
 import tempfile
 import pickle
 import time
-from typing import Optional
+from typing import Optional, Literal, Annotated, Union
 
 import gin
 from lru import LRU
@@ -45,18 +45,31 @@ class OpenAIMessage(BaseModel):
     content: str
 
 
+# All system1 should be one of these.
 class KnowledgeTag(BaseModel):
     key: str
-    value: str
+    value: str | None = None
 
 
-class FilteredKnowledge(BaseModel):
-    knowledge_label: str = Field(..., alias="knowledgeLabel")
+# FilePart will be used as anonymous knowledge.
+class FilePart(BaseModel):
+    type: Literal["FilePart"] = Field("FilePart", frozen=True)
+    content: str
+    # this is not the 'type' field used for polymorphism
+    file_type: str = "txt"
+
+
+class RetrievablePart(BaseModel):
+    type: Literal["RetrievablePart"] = Field("RetrievablePart", frozen=True)
+    name: str
     tags: list[KnowledgeTag]
 
-    class Config:
-        populate_by_name = True
-        allow_population_by_field_name = True
+
+# KnowledgePart is a union of FilePart and RetrievablePart
+KnowledgePart = Annotated[
+    Union[FilePart, RetrievablePart],
+    Field(discriminator="type")
+]
 
 
 class System1Request(BaseModel):
@@ -67,13 +80,14 @@ class System1Request(BaseModel):
     model_key: str = Field(..., alias="modelKey")
     contexts: list[str]
     turns: list[OpenAIMessage]
-    collections: Optional[list[FilteredKnowledge]] = Field(None, alias="collections")
+    collections: Optional[list[KnowledgePart]] = Field(None, alias="collections")
     temperature: float = 0.0
     top_k: int = Field(1, alias="topK")
 
     class Config:
         populate_by_name = True
         allow_population_by_field_name = True
+
 
 @routes.get("/")
 async def hello(_: web.Request):

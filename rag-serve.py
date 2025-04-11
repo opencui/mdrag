@@ -380,7 +380,7 @@ class Generator:
         req["query"] = user_input
 
 
-        collections = self.adapter.validate_python(req.get("collections", []))
+        collections = req.get("collections", [])
 
         # We assume the context is what prompt will use,
         contexts = []

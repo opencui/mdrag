@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import dataclasses
+import json
 import logging
 import os
 import os.path
@@ -27,7 +28,7 @@ from llama_index.core import (
 
 from typing import Any, Literal, Union, Annotated
 from jinja2 import Environment
-from pydantic import BaseModel, Field, TypeAdapter
+from pydantic import BaseModel, Field
 
 from rag_index import build_index
 from processors.embedding import get_embedding
@@ -313,6 +314,8 @@ async def generate(request: web.Request):
 
     req = await request.json()
 
+    print(json.dumps(req))
+
     model_key = req.get("model_key")
     model_url = req.get("model_url")
     model_family = req.get("model_family").lower()
@@ -346,7 +349,6 @@ class Generator:
         self.model_name = model_name
         self.model_url = model_url
         self.model_key = model_key
-        self.adapter = app["adapter"]
 
     async def __call__(self,  req: dict[str, Any], backup_prompt: str = None):
         logging.info("request")
@@ -383,7 +385,8 @@ class Generator:
         # We assume the context is what prompt will use,
         contexts = []
 
-        for collection in collections:
+        for rcollection in collections:
+            collection = json.loads(rcollection)
             if collection is FilePart:
                 contexts.append(collection.content)
             elif collection is RetrievablePart:
@@ -478,7 +481,6 @@ def init_app(data_path, embedding_model):
     app["template_cache"] = LRU(1024)
     app["retriever_cache"] = LRU(512)
     app["embedding_model"] = embedding_model
-    app["adapter"] = TypeAdapter(list[KnowledgePart])
     app["prompt"] = (
         "We have provided context information below. \n"
         "---------------------\n"

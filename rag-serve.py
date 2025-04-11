@@ -244,10 +244,6 @@ async def tryitnow(request: web.Request):
     return web.json_response({})
 
 
-# This is used for constrain the retrieved document.
-class FilteredCollection(BaseModel):
-    knowledge_name: str
-    tags: dict[str, str] = {}
 
 
 @routes.post("/query/{org}/{agent}")
@@ -300,7 +296,7 @@ async def query(request: web.Request):
         return web.json_response({"errMsg": "index not found"})
 
     # The default does not have tags in the api.
-    req["collections"] = [FilteredCollection(knowledge_name=agent_name).model_dump_json()]
+    req["collections"] = [RetrievablePart(knowledge_name=agent_name).model_dump_json()]
 
     return await generate(req, backup_prompt)
 

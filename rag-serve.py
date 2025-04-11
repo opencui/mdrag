@@ -25,9 +25,9 @@ from llama_index.core import (
     set_global_service_context,
 )
 
-from typing import Any
+from typing import Any, Literal, Union, Annotated
 from jinja2 import Environment
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 
 from rag_index import build_index
 from processors.embedding import get_embedding
@@ -40,23 +40,35 @@ logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 routes = web.RouteTableDef()
 
 
+# All system1 should be one of these.
+class KnowledgeTag(BaseModel):
+    key: str
+    value: str | None = None
+
+
+# FilePart will be used as anonymous knowledge.
+class FilePart(BaseModel):
+    type: Literal["FilePart"] = Field("FilePart", frozen=True)
+    content: str
+    # this is not the 'type' field used for polymorphism
+    file_type: str = "txt"
+
+
+class RetrievablePart(BaseModel):
+    type: Literal["RetrievablePart"] = Field("RetrievablePart", frozen=True)
+    name: str
+    tags: list[KnowledgeTag]
+
+
+# KnowledgePart is a union of FilePart and RetrievablePart
+KnowledgePart = Annotated[
+    Union[FilePart, RetrievablePart],
+    Field(discriminator="type")
+]
+
 class OpenAIMessage(BaseModel):
     role: str
     content: str
-
-
-class KnowledgeTag(BaseModel):
-    key: str
-    value: str
-
-
-class FilteredKnowledge(BaseModel):
-    knowledge_label: str = Field(..., alias="knowledgeLabel")
-    tags: list[KnowledgeTag]
-
-    class Config:
-        populate_by_name = True
-        allow_population_by_field_name = True
 
 
 class System1Request(BaseModel):
@@ -65,9 +77,8 @@ class System1Request(BaseModel):
     model_family: str = Field(..., alias="modelFamily")
     model_name: str = Field(..., alias="modelName")
     model_key: str = Field(..., alias="modelKey")
-    contexts: list[str]
     turns: list[OpenAIMessage]
-    collections: Optional[list[FilteredKnowledge]] = Field(None, alias="collections")
+    collections: Optional[list[KnowledgePart]] = Field(None, alias="collections")
     temperature: float = 0.0
     top_k: int = Field(1, alias="topK")
 
@@ -335,6 +346,7 @@ class Generator:
         self.model_name = model_name
         self.model_url = model_url
         self.model_key = model_key
+        self.adapter = app["adapter"]
 
     async def __call__(self,  req: dict[str, Any], backup_prompt: str = None):
         logging.info("request")
@@ -365,25 +377,25 @@ class Generator:
         user_input = turns[-1].get("content", "")
         req["query"] = user_input
 
+        collections = self.adapter.model_validate(req["collections"])
+
         # We assume the context is what prompt will use,
-        if "contexts" not in req:
-            collections = req["collections"]
+        contexts = []
 
-            if isinstance(collections, list) and len(collections) != 0:
-                context = []
-                for collection_in_json in collections:
-                    collection = FilteredCollection.model_validate_json(collection_in_json)
-                    agent_path = self.agent_home(collection.knowledge_name)
+        for collection in collections:
+            if collection is FilePart:
+                contexts.append(collection.content)
+            elif collection is RetrievablePart:
+                agent_path = self.agent_home(collection.knowledge_name)
 
-                    if not os.path.exists(agent_path):
-                        return web.json_response({"errMsg": f"index not found for {collection.knowledge_name}"})
+                if not os.path.exists(agent_path):
+                    return web.json_response({"errMsg": f"index not found for {collection.knowledge_name}"})
 
-                    retriever = get_retriever(agent_path, self.lru_cache)  # type: ignore
-                    # What is the result here?
-                    context.extend(retriever.retrieve(user_input))
+                retriever = get_retriever(agent_path, self.lru_cache)  # type: ignore
+                # What is the result here?
+                contexts.extend(retriever.retrieve(user_input))
 
-                req["context"] = context
-
+        req["context"] = "\n".join(contexts)
 
         template = get_template(self.template_cache, prompt)
 
@@ -464,7 +476,7 @@ def init_app(data_path, embedding_model):
     app["template_cache"] = LRU(1024)
     app["retriever_cache"] = LRU(512)
     app["embedding_model"] = embedding_model
-
+    app["adapter"] = TypeAdapter(list[KnowledgePart])
     app["prompt"] = (
         "We have provided context information below. \n"
         "---------------------\n"

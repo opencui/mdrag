@@ -382,7 +382,7 @@ class Generator:
             if isinstance(collections, list) and len(collections) != 0:
                 context = []
                 for collection_in_json in collections:
-                    collection = KnowledgePart.validate_python(collection_in_json)
+                    collection = KnowledgePart.validate(collection_in_json)
                     if collection is RetrievablePart:
                         agent_path = self.agent_home(collection.knowledge_name)
 

@@ -385,7 +385,7 @@ class Generator:
                 for collection_in_json in collections:
                     collection = self.adapter.validate_python(collection_in_json)
                     print(collection)
-                    if collection is RetrievablePart:
+                    if isinstance(collection, RetrievablePart):
                         print(collection)
                         agent_path = self.agent_home(collection.name)
 
@@ -395,8 +395,10 @@ class Generator:
                         retriever = get_retriever(agent_path, self.lru_cache)  # type: ignore
                         # What is the result here?
                         context.extend(retriever.retrieve(user_input))
-                    elif collection is FilePart:
+                    elif isinstance(collection, FilePart):
                         context.extend(collection.content)
+                    else:
+                        return web.json_response({"errMsg": f"do not know how to handle {collection}"})
                 req["context"] = context
 
 

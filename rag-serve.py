@@ -296,7 +296,7 @@ async def query(request: web.Request):
         return web.json_response({"errMsg": "index not found"})
 
     # The default does not have tags in the api.
-    req["collections"] = [RetrievablePart(knowledge_name=agent_name).model_dump_json()]
+    req["collections"] = [RetrievablePart(knowledge_name=agent_name).model_dump()]
 
     return await generate(req, backup_prompt)
 
@@ -382,7 +382,7 @@ class Generator:
             if isinstance(collections, list) and len(collections) != 0:
                 context = []
                 for collection_in_json in collections:
-                    collection = FilteredCollection.model_validate_json(collection_in_json)
+                    collection = RetrievablePart.model_validate(collection_in_json)
                     agent_path = self.agent_home(collection.knowledge_name)
 
                     if not os.path.exists(agent_path):

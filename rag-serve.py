@@ -27,7 +27,7 @@ from llama_index.core import (
 
 from typing import Any
 from jinja2 import Environment
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 
 from rag_index import build_index
 from processors.embedding import get_embedding
@@ -345,6 +345,7 @@ class Generator:
         self.model_name = model_name
         self.model_url = model_url
         self.model_key = model_key
+        self.adapter = app["adapter"]
 
     async def __call__(self,  req: dict[str, Any], backup_prompt: str = None):
         logging.info("request")
@@ -382,7 +383,7 @@ class Generator:
             if isinstance(collections, list) and len(collections) != 0:
                 context = []
                 for collection_in_json in collections:
-                    collection = KnowledgePart.validate_python(collection_in_json)
+                    collection = self.adapter.validate_python(collection_in_json)
                     if collection is RetrievablePart:
                         agent_path = self.agent_home(collection.knowledge_name)
 
@@ -476,7 +477,7 @@ def init_app(data_path, embedding_model):
     app["template_cache"] = LRU(1024)
     app["retriever_cache"] = LRU(512)
     app["embedding_model"] = embedding_model
-
+    app["adapter"] = TypeAdapter(KnowledgePart)
     app["prompt"] = (
         "We have provided context information below. \n"
         "---------------------\n"

@@ -312,10 +312,10 @@ async def generate(request: web.Request):
     req = await request.json()
     logging.info(f"generate request: ${req}")
 
-    model_key = req.get("model_key")
-    model_url = req.get("model_url")
-    model_family = req.get("model_family").lower()
-    model_label = req.get("model_label")
+    model_key = req.get("modelKey")
+    model_url = req.get("modelUrl")
+    model_family = req.get("modelFamily").lower()
+    model_label = req.get("modelName")
 
     if model_label is None or model_family is None:
         logging.info("could not find the model name")

@@ -296,7 +296,7 @@ async def query(request: web.Request):
         return web.json_response({"errMsg": "index not found"})
 
     # The default does not have tags in the api.
-    req["collections"] = [RetrievablePart(knowledge_name=agent_name).model_dump()]
+    req["collections"] = [RetrievablePart(name=agent_name).model_dump()]
 
     return await generate(req, backup_prompt)
 
@@ -382,16 +382,18 @@ class Generator:
             if isinstance(collections, list) and len(collections) != 0:
                 context = []
                 for collection_in_json in collections:
-                    collection = RetrievablePart.model_validate(collection_in_json)
-                    agent_path = self.agent_home(collection.knowledge_name)
+                    collection = KnowledgePart.model_validate(collection_in_json)
+                    if collection is RetrievablePart:
+                        agent_path = self.agent_home(collection.knowledge_name)
 
-                    if not os.path.exists(agent_path):
-                        return web.json_response({"errMsg": f"index not found for {collection.knowledge_name}"})
+                        if not os.path.exists(agent_path):
+                            return web.json_response({"errMsg": f"index not found for {collection.knowledge_name}"})
 
-                    retriever = get_retriever(agent_path, self.lru_cache)  # type: ignore
-                    # What is the result here?
-                    context.extend(retriever.retrieve(user_input))
-
+                        retriever = get_retriever(agent_path, self.lru_cache)  # type: ignore
+                        # What is the result here?
+                        context.extend(retriever.retrieve(user_input))
+                    elif collection is FilePart:
+                        context.extend(collection.content)
                 req["context"] = context
 
 

@@ -386,6 +386,7 @@ class Generator:
                     collection = self.adapter.validate_python(collection_in_json)
                     print(collection)
                     if collection is RetrievablePart:
+                        print(collection)
                         agent_path = self.agent_home(collection.name)
 
                         if not os.path.exists(agent_path):

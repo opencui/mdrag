@@ -23,4 +23,5 @@ jobs:
       - uses: framely/actions-composite-expand@main
         with:
           main: |
+            python -m pip show pydantic
             bash -xe .ci.sh

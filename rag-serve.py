@@ -377,7 +377,8 @@ class Generator:
         user_input = turns[-1].get("content", "")
         req["query"] = user_input
 
-        collections = self.adapter.validate_python(req["collections"])
+
+        collections = self.adapter.validate_python(req.get("collections", []))
 
         # We assume the context is what prompt will use,
         contexts = []
@@ -395,7 +396,8 @@ class Generator:
                 # What is the result here?
                 contexts.extend(retriever.retrieve(user_input))
 
-        req["context"] = "\n".join(contexts)
+        if len(collections) != 0:
+            req["context"] = "\n".join(contexts)
 
         template = get_template(self.template_cache, prompt)
 

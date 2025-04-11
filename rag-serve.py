@@ -377,7 +377,7 @@ class Generator:
         user_input = turns[-1].get("content", "")
         req["query"] = user_input
 
-        collections = self.adapter.model_validate(req["collections"])
+        collections = self.adapter.validate_python(req["collections"])
 
         # We assume the context is what prompt will use,
         contexts = []

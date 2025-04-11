@@ -385,10 +385,10 @@ class Generator:
                 for collection_in_json in collections:
                     collection = self.adapter.validate_python(collection_in_json)
                     if collection is RetrievablePart:
-                        agent_path = self.agent_home(collection.knowledge_name)
+                        agent_path = self.agent_home(collection.name)
 
                         if not os.path.exists(agent_path):
-                            return web.json_response({"errMsg": f"index not found for {collection.knowledge_name}"})
+                            return web.json_response({"errMsg": f"index not found for {collection.name}"})
 
                         retriever = get_retriever(agent_path, self.lru_cache)  # type: ignore
                         # What is the result here?

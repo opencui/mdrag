@@ -302,15 +302,15 @@ async def query(request: web.Request):
 
 
 # We assume all the knowledges from the same org is colocated.
-@routes.post("/api/v1/{org}/generate/")
+@routes.post("/api/v1/{org}/generate")
 async def generate(request: web.Request):
     # create agent home
     data_path = request.app["data_path"]
     org_name = request.match_info["org"]
     agent_home = AgentHome(data_path=data_path, org_name=org_name)
 
-
     req = await request.json()
+    logging.info(f"generate request: ${req}")
 
     model_key = req.get("model_key")
     model_url = req.get("model_url")
@@ -336,7 +336,6 @@ async def generate(request: web.Request):
     return await generate(req, None)
 
 
-
 class Generator:
     def __init__(self, agent_home: AgentHome, app: web.Application, model_url: str, model_name: str, model_key: str):
         self.agent_home = agent_home
@@ -348,8 +347,7 @@ class Generator:
         self.adapter = app["adapter"]
 
     async def __call__(self,  req: dict[str, Any], backup_prompt: str = None):
-        logging.info("request")
-        logging.info(req)
+        logging.info(f"request: ${req}")
         start_time = time.time()
 
         turns = req.get("turns", [])

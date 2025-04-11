@@ -296,7 +296,7 @@ async def query(request: web.Request):
         return web.json_response({"errMsg": "index not found"})
 
     # The default does not have tags in the api.
-    req["collections"] = [RetrievablePart(name=agent_name).model_dump()]
+    req["collections"] = [RetrievablePart(name=agent_name, tags=[]).model_dump()]
 
     return await generate(req, backup_prompt)
 

@@ -174,9 +174,9 @@ async def check_index(agent_path: str = Depends(get_agent_path)):
 
 @app.post("/index/{org}/{agent}")
 async def build_index_handler_fastapi(
+    request: Request, # Still need Request to get all headers or process multipart
     org: str = Path(...),
     agent: str = Path(...),
-    request: Request, # Still need Request to get all headers or process multipart
     files: List[UploadFile] = File(None),
     url: Optional[str] = Form(None),
     settings: Settings = Depends(get_settings) # Inject settings

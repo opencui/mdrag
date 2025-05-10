@@ -277,10 +277,10 @@ class QueryRequest(BaseModel):
 
 @app.post("/query/{org}/{agent}")
 async def query(
+    request: Request, # Keep for headers
     payload: QueryRequest,
     org: str = Path(...),
     agent: str = Path(...),
-    request: Request, # Keep for headers
     settings: Settings = Depends(get_settings)
 ):
     agent_path = get_agent_path(org, agent, settings) # Use dependency
@@ -330,9 +330,9 @@ class GenerateApiRequest(BaseModel):
 
 @app.post("/api/v1/{org}/generate")
 async def generate_api(
+    request: Request, # Keep for headers
     payload: GenerateApiRequest,
     org: str = Path(...),
-    request: Request, # Keep for headers
     settings: Settings = Depends(get_settings)
 ):
     req_dict = payload.model_dump(by_alias=True)

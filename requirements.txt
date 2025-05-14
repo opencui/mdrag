@@ -106,3 +106,6 @@ wrapt==1.16.0
 git+https://github.com/openai/whisper.git
 xxhash==3.4.1
 yarl
+fastapi==0.115.12
+python-multipart==0.0.20
+uvicorn==0.34.2

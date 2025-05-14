@@ -16,7 +16,6 @@ from typing import Optional, Literal, Annotated, Union
 import gin
 from lru import LRU
 
-from aiohttp import web
 from contextlib import closing
 from llama_index.core import (
     ServiceContext,
@@ -26,7 +25,7 @@ from llama_index.core import (
 )
 
 from typing import Any
-from jinja2 import Environment
+from jinja2 import Environment, Template
 from pydantic import BaseModel, Field, TypeAdapter
 
 from rag_index import build_index
@@ -34,10 +33,15 @@ from processors.embedding import get_embedding
 from processors.llm import get_generator
 from processors.retriever import HybridRetriever
 
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from starlette.datastructures import UploadFile
+
+routes = FastAPI()
+
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
-
-routes = web.RouteTableDef()
 
 
 class OpenAIMessage(BaseModel):
@@ -66,10 +70,7 @@ class RetrievablePart(BaseModel):
 
 
 # KnowledgePart is a union of FilePart and RetrievablePart
-KnowledgePart = Annotated[
-    Union[FilePart, RetrievablePart],
-    Field(discriminator="type")
-]
+KnowledgePart = Annotated[Union[FilePart, RetrievablePart], Field(discriminator="type")]
 
 
 class System1Request(BaseModel):
@@ -90,8 +91,8 @@ class System1Request(BaseModel):
 
 
 @routes.get("/")
-async def hello(_: web.Request):
-    return web.Response(text="Hello, world")
+async def hello():
+    return "Hello, world"
 
 
 class AgentHome(BaseModel):
@@ -102,9 +103,7 @@ class AgentHome(BaseModel):
         return os.path.join(self.data_path, self.org_name, agent_name)
 
 
-def get_agent_path(req: web.Request, agent_name: str) -> str:
-    data_path = req.app["data_path"]
-    org_name = req.match_info["org"]
+def get_agent_path(data_path: str, org_name: str, agent_name: str) -> str:
     get_agent_home = AgentHome(data_path=data_path, org_name=org_name)
     return get_agent_home(agent_name)
 
@@ -152,20 +151,22 @@ def get_retriever(agent_path: str, lru_cache: LRU, mode):
             return None
 
 
-@routes.get("/index/{org}/{agent}")
-async def check(request: web.Request):
-    agent_name = request.match_info["agent"]
-    agent_path = get_agent_path(request, agent_name)
+@routes.get("/index/{org_name}/{agent_name}")
+async def check(org_name: str, agent_name: str):
+    agent_path = get_agent_path(routes.state.data_path, org_name, agent_name)
     if not os.path.exists(agent_path):
-        return web.json_response({"errMsg": "index not found"}, status=500)
-    return web.json_response({})
+        return JSONResponse(status_code=500, content={"errMsg": "index not found"})
+    return JSONResponse(status_code=200, content={})
 
 
-@routes.post("/index/{org}/{agent}")
-async def build_index_handler(request: web.Request):
-    agent_name = request.match_info["agent"]
-    agent_path = get_agent_path(request, agent_name)
-    lru_cache = request.app["retriever_cache"]
+@routes.post("/index/{org_name}/{agent_name}")
+async def build_index_handler(
+    org_name: str,
+    agent_name: str,
+    request: Request,
+):
+    agent_path = get_agent_path(routes.state.data_path, org_name, agent_name)
+    lru_cache = routes.state.retriever_cache
 
     if os.path.exists(agent_path):
         shutil.rmtree(agent_path)
@@ -174,38 +175,39 @@ async def build_index_handler(request: web.Request):
     with tempfile.TemporaryDirectory(prefix="mdrag_") as tmpdirname:
         args = []
 
-        reader = await request.multipart()
-        o = await reader.next()
-        while o is not None:
-            match o.name:  # type: ignore
+        form = await request.form()
+        for field_name, field in form.items():
+            match field_name:
                 case "url":
-                    args.append(await o.text())  # type: ignore
+                    if isinstance(field, str):
+                        args.append(field)
                 case "tar" | "tar.gz":
-                    n = tempfile.mkdtemp(dir=tmpdirname)
-                    b = io.BytesIO(await o.read())  # type: ignore
-                    with closing(tarfile.open(fileobj=b)) as t:
-                        t.extractall(n)
-                    args.append(n)
+                    if isinstance(field, UploadFile):
+                        n = tempfile.mkdtemp(dir=tmpdirname)
+                        b = io.BytesIO(await field.read())
+                        with closing(tarfile.open(fileobj=b)) as t:
+                            t.extractall(n)
+                        args.append(n)
                 case "file":
-                    _p = os.path.abspath(os.path.join(tmpdirname, o.filename))
-                    if not _p.startswith(tmpdirname):
-                        return web.json_response(
-                            {"errMsg": f"file name error {o.filename}"}
-                        )
+                    if isinstance(field, UploadFile) and field.filename is not None:
+                        _p = os.path.abspath(os.path.join(tmpdirname, field.filename))
+                        if not _p.startswith(tmpdirname):
+                            return JSONResponse(
+                                status_code=500,
+                                content={"errMsg": f"file name error {field.filename}"},
+                            )
 
-                    os.makedirs(os.path.dirname(_p), exist_ok=True)
-                    with tempfile.NamedTemporaryFile(
-                        dir=os.path.dirname(_p),
-                        suffix=f"_{os.path.basename(_p)}",  # type: ignore
-                        delete=False,
-                    ) as f:
-                        f.write(await o.read())  # type: ignore
-                        args.append(f.name)
-
-            o = await reader.next()
+                        os.makedirs(os.path.dirname(_p), exist_ok=True)
+                        with tempfile.NamedTemporaryFile(
+                            dir=os.path.dirname(_p),
+                            suffix=f"_{os.path.basename(_p)}",
+                            delete=False,
+                        ) as f:
+                            f.write(await field.read())
+                            args.append(f.name)
 
         print(args)
-        embedding_model = request.app["embedding_model"]
+        embedding_model = routes.state.embedding_model
 
         headers = {}
         for k in request.headers.items():
@@ -217,11 +219,11 @@ async def build_index_handler(request: web.Request):
         build_index(embedding_model, agent_path, *args)
         lru_cache[agent_path] = None
 
-    return web.json_response({})
+    return JSONResponse(content={})
 
 
 @routes.post("/v1/tryitnow/")
-async def tryitnow(request: web.Request):
+async def tryitnow(request: Request):
     req = await request.json()
 
     text = req.get("text", "")
@@ -229,35 +231,36 @@ async def tryitnow(request: web.Request):
     initial = req.get("initial", "")
 
     if len(text) == 0:
-        return web.json_response({"errMsg": "text value is not empty"})
+        return JSONResponse(
+            content={"errMsg": "text value is not empty"},
+        )
 
     if not isinstance(initial, bool):
-        return web.json_response({"errMsg": "initial type is not bool"})
+        return JSONResponse(
+            content={"errMsg": "initial type is not bool"},
+        )
 
     if not isinstance(events, list):
-        return web.json_response({"errMsg": "events type is not list"})
+        return JSONResponse(
+            content={"errMsg": "events type is not list"},
+        )
 
     for e in events:
         if not isinstance(e, dict):
-            return web.json_response({"errMsg": "events[index] type is not dict"})
+            return JSONResponse(
+                content={"errMsg": "events[index] type is not dict"},
+            )
 
-    return web.json_response({})
+    return JSONResponse(content={})
 
 
-
-
-@routes.post("/query/{org}/{agent}")
-async def query(request: web.Request):
-    agent_name = request.match_info["agent"]
-
+@routes.post("/query/{org_name}/{agent_name}")
+async def query(org_name: str, agent_name: str, request: Request):
     # create agent home
-    data_path = request.app["data_path"]
-    org_name = request.match_info["org"]
-    agent_home = AgentHome(data_path=data_path, org_name=org_name)
-
-    backup_prompt = request.app["prompt"]
-
+    agent_home = AgentHome(data_path=routes.state.data_path, org_name=org_name)
     agent_path = agent_home(agent_name)
+
+    backup_prompt = routes.state.prompt
 
     req = await request.json()
     with open(os.path.join(agent_path, "headers.pickle"), "rb") as f:
@@ -277,36 +280,44 @@ async def query(request: web.Request):
 
     if knowledge_model_name is None:
         logging.info("could not find the model name")
-        return web.json_response({"errMsg": "model name found"})
+        return JSONResponse(
+            content={"errMsg": {"errMsg": "model name found"}},
+        )
 
     knowledge_model_name = f"{knowledge_model}/{knowledge_model_name}"
     logging.info(f"knowledge_model:{knowledge_model}")
     logging.info(f"model_name: {knowledge_model_name}")
     logging.info(f"llm_url: {knowledge_url}")
 
+    if not (isinstance(knowledge_url, str) and isinstance(knowledge_key, str)):
+        return JSONResponse(
+            content={"errMsg": {"errMsg": "get Knowledge-Key or Knowledge-Url failed"}},
+        )
+
     generate = Generator(
         agent_home=agent_home,
         app=request.app,
         model_url=knowledge_url,
         model_name=knowledge_model_name,
-        model_key=knowledge_key
+        model_key=knowledge_key,
     )
 
     if not os.path.exists(agent_path):
-        return web.json_response({"errMsg": "index not found"})
+        return JSONResponse(
+            content={"errMsg": {"errMsg": "index not found"}},
+        )
 
     # The default does not have tags in the api.
-    req["collections"] = [RetrievablePart(name=agent_name, tags=[]).model_dump()]
+    req["collections"] = [RetrievablePart(name=agent_name, tags=[]).model_dump()]  # type: ignore
 
     return await generate(req, backup_prompt)
 
 
 # We assume all the knowledges from the same org is colocated.
-@routes.post("/api/v1/{org}/generate")
-async def generate(request: web.Request):
+@routes.post("/api/v1/{org_name}/generate")
+async def generate(org_name: str, request: Request):
     # create agent home
-    data_path = request.app["data_path"]
-    org_name = request.match_info["org"]
+    data_path = routes.state.data_path
     agent_home = AgentHome(data_path=data_path, org_name=org_name)
 
     req = await request.json()
@@ -319,7 +330,7 @@ async def generate(request: web.Request):
 
     if model_label is None or model_family is None:
         logging.info("could not find the model name")
-        return web.json_response({"errMsg": "model name found"})
+        return JSONResponse(content={"errMsg": "model name found"})
 
     model_name = f"{model_family}/{model_label}"
     logging.info(f"model_name: {model_name}")
@@ -330,46 +341,53 @@ async def generate(request: web.Request):
         app=request.app,
         model_url=model_url,
         model_name=model_name,
-        model_key=model_key
+        model_key=model_key,
     )
 
-    return await generate(req, None)
+    return await generate(req, "")
 
 
 class Generator:
-    def __init__(self, agent_home: AgentHome, app: web.Application, model_url: str, model_name: str, model_key: str):
+    def __init__(
+        self,
+        agent_home: AgentHome,
+        app: dict,
+        model_url: str,
+        model_name: str,
+        model_key: str,
+    ):
         self.agent_home = agent_home
-        self.template_cache = app["template_cache"]
-        self.lru_cache = app["retriever_cache"]
+        self.template_cache = routes.state.template_cache
+        self.lru_cache = routes.state.retriever_cache
         self.model_name = model_name
         self.model_url = model_url
         self.model_key = model_key
         self.adapter = app["adapter"]
 
-    async def __call__(self,  req: dict[str, Any], backup_prompt: str = None):
+    async def __call__(self, req: dict[str, Any], backup_prompt: str):
         logging.info(f"request: ${req}")
         start_time = time.time()
 
         turns = req.get("turns", [])
-        prompt = req.get("prompt", "")
+        prompt: str = req.get("prompt", "")
 
         if len(prompt) == 0:
             prompt = backup_prompt
 
         if not isinstance(turns, list):
             logging.error("turns is not a list")
-            return web.json_response({"errMsg": "turns type is not list"})
+            return JSONResponse(content={"errMsg": "turns type is not list"})
 
         if len(turns) == 0:
             logging.error("empty turns")
             feedback = req.get("feedback", None)
             if feedback:
-                return web.json_response({"reply": ""})
-            return web.json_response({"errMsg": "turns length cannot be empty"})
+                return JSONResponse(content={"reply": ""})
+            return JSONResponse(content={"errMsg": "turns length cannot be empty"})
 
         if turns[-1].get("role", "") != "user":
             logging.info("last turn is not from user")
-            return web.json_response({"errMsg": "last turn is not from user"})
+            return JSONResponse(content={"errMsg": "last turn is not from user"})
 
         user_input = turns[-1].get("content", "")
         req["query"] = user_input
@@ -388,7 +406,11 @@ class Generator:
                         agent_path = self.agent_home(collection.name)
 
                         if not os.path.exists(agent_path):
-                            return web.json_response({"errMsg": f"index not found for {collection.name}"})
+                            return JSONResponse(
+                                content={
+                                    "errMsg": f"index not found for {collection.name}"
+                                }
+                            )
 
                         retriever = get_retriever(agent_path, self.lru_cache)  # type: ignore
                         # What is the result here?
@@ -396,9 +418,12 @@ class Generator:
                     elif isinstance(collection, FilePart):
                         context.extend(collection.content)
                     else:
-                        return web.json_response({"errMsg": f"do not know how to handle {collection}"})
+                        return JSONResponse(
+                            content={
+                                "errMsg": f"do not know how to handle {collection}"
+                            }
+                        )
                 req["context"] = context
-
 
         template = get_template(self.template_cache, prompt)
 
@@ -407,7 +432,7 @@ class Generator:
         logging.info(new_prompt)
 
         if "temperature" in req:
-            temperature = float(req["temperature"])
+            temperature = int(req["temperature"])
         else:
             temperature = 0
 
@@ -415,7 +440,7 @@ class Generator:
             model=self.model_name,
             api_key=self.model_key,
             model_url=self.model_url,
-            temperature=temperature
+            temperature=temperature,
         )
 
         # So that we can use different llm.
@@ -425,14 +450,13 @@ class Generator:
         end_time = time.time()
         elapsed_time = end_time - start_time
         logging.info(f"Elapsed time: {elapsed_time}")
-        return web.json_response(dataclasses.asdict(resp))
+        return JSONResponse(content=dataclasses.asdict(resp))
 
 
-@routes.post("/retrieve/{org}/{agent}")
-async def retrieve(request: web.Request):
-    agent_name = request.match_info["agent"]
-    agent_path = get_agent_path(request, agent_name)
-    lru_cache = request.app["retriever_cache"]
+@routes.post("/retrieve/{org_name}/{agent_name}")
+async def retrieve(org_name: str, agent_name: str, request: Request):
+    agent_path = get_agent_path(routes.state.data_path, org_name, agent_name)
+    lru_cache = routes.state.retriever_cache
 
     req = await request.json()
     user_input = get_user_input(req)
@@ -442,7 +466,7 @@ async def retrieve(request: web.Request):
     context = retriever.retrieve(user_input)
 
     resp = {"reply": context}
-    return web.json_response(resp)
+    return JSONResponse(content=resp)
 
 
 def get_user_input(req: dict[str, Any]):
@@ -456,7 +480,7 @@ def get_user_input(req: dict[str, Any]):
     return turns[-1].get("content", "")
 
 
-def get_template(template_cache: LRU, prompt: str) -> str:
+def get_template(template_cache: LRU, prompt: str) -> Template:
     if len(prompt) == 0:
         raise ValueError("Prompt is missing.")
 
@@ -470,27 +494,24 @@ def get_template(template_cache: LRU, prompt: str) -> str:
     return template
 
 
-def init_app(data_path, embedding_model):
-    app = web.Application()
-    app.add_routes(routes)
-
-    app["data_path"] = data_path
-
-    app["template_cache"] = LRU(1024)
-    app["retriever_cache"] = LRU(512)
-    app["embedding_model"] = embedding_model
-    app["adapter"] = TypeAdapter(KnowledgePart)
-    app["prompt"] = (
+def init_app(data_path: str, embedding_model: Any):
+    routes.state.data_path = data_path
+    routes.state.template_cache = LRU(1024)
+    routes.state.retriever_cache = LRU(512)
+    routes.state.embedding_model = embedding_model
+    routes.state.adapter = TypeAdapter(KnowledgePart)
+    routes.state.prompt = (
         "We have provided context information below. \n"
         "---------------------\n"
         "{{context}}"
         "\n---------------------\n"
         "Given this information, please answer the question: {{query}}\n"
     )
-    return app
 
 
 if __name__ == "__main__":
+    import uvicorn
+
     gin.parse_config_file("serve.gin")
     embedding_model = get_embedding()  # type: ignore
 
@@ -506,6 +527,8 @@ if __name__ == "__main__":
         llm_predictor=None,
         embed_model=embedding_model,
     )
+
     set_global_service_context(service_context)
 
-    web.run_app(init_app(p, embedding_model))
+    init_app(p, embedding_model)
+    uvicorn.run(routes, host="0.0.0.0", port=8080)

@@ -266,13 +266,13 @@ async def query(org_name: str, agent_name: str, request: Request):
     with open(os.path.join(agent_path, "headers.pickle"), "rb") as f:
         headers: dict = pickle.load(f)
 
-    knowledge_key = req.get("Knowledge-Key") or headers.get("Knowledge-Key")
-    knowledge_url = req.get("Knowledge-Url") or headers.get("Knowledge-Url")
+    knowledge_key = req.get("Knowledge-Key") or headers.get("Knowledge-Key".lower())
+    knowledge_url = req.get("Knowledge-Url") or headers.get("Knowledge-Url".lower())
     knowledge_model = (
-        req.get("Knowledge-Model") or headers.get("Knowledge-Model", "")
+        req.get("Knowledge-Model") or headers.get("Knowledge-Model".lower(), "")
     ).lower()
     knowledge_model_name = req.get("Knowledge-Model-Name") or headers.get(
-        "Knowledge-Model-Name"
+        "Knowledge-Model-Name".lower()
     )
 
     if knowledge_model == "":
@@ -289,7 +289,7 @@ async def query(org_name: str, agent_name: str, request: Request):
     logging.info(f"model_name: {knowledge_model_name}")
     logging.info(f"llm_url: {knowledge_url}")
 
-    if not (isinstance(knowledge_url, str) and isinstance(knowledge_key, str)):
+    if not isinstance(knowledge_url, str):
         return JSONResponse(
             content={"errMsg": {"errMsg": "get Knowledge-Key or Knowledge-Url failed"}},
         )
@@ -354,7 +354,7 @@ class Generator:
         app: dict,
         model_url: str,
         model_name: str,
-        model_key: str,
+        model_key: str | None,
     ):
         self.agent_home = agent_home
         self.template_cache = routes.state.template_cache
@@ -362,7 +362,7 @@ class Generator:
         self.model_name = model_name
         self.model_url = model_url
         self.model_key = model_key
-        self.adapter = app["adapter"]
+        self.adapter = routes.state.adapter
 
     async def __call__(self, req: dict[str, Any], backup_prompt: str):
         logging.info(f"request: ${req}")

@@ -24,7 +24,7 @@ from llama_index.core import (
     set_global_service_context,
 )
 
-from typing import Any
+from typing import Any, List
 from jinja2 import Environment, Template
 from pydantic import BaseModel, Field, TypeAdapter
 
@@ -464,6 +464,23 @@ async def retrieve(org_name: str, agent_name: str, request: Request):
     retriever = get_retriever(agent_path, lru_cache, mode)  # type: ignore
 
     context = retriever.retrieve(user_input)
+
+    resp = {"reply": context}
+    return JSONResponse(content=resp)
+
+
+class KnowledgeBaseBody(BaseModel):
+    query: str
+    filter: Optional[List[str]] = None
+
+
+@routes.post("knowledge_base/{org_name}/{agent_name}")
+async def knowledge_base(org_name: str, agent_name: str, item: KnowledgeBaseBody):
+    agent_path = get_agent_path(routes.state.data_path, org_name, agent_name)
+    lru_cache = routes.state.retriever_cache
+
+    retriever = get_retriever(agent_path, lru_cache)
+    context = retriever.retrieve(item.query)
 
     resp = {"reply": context}
     return JSONResponse(content=resp)
